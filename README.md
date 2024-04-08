@@ -1,3 +1,3 @@
-# Gregarine
+# Gregarine infecting the cricket Acheta domesticus
 
-Video showing an oocyst chain from a gametocyst. You can download the video and play it on VLC media player for example (https://www.videolan.org/vlc/).
+Images and Videos of showing the life cycle of this organism and different techniques linked to its control. Videos can be played on VLC media player for example (https://www.videolan.org/vlc/).
