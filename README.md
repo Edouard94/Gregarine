@@ -1,3 +1,3 @@
-# Gregarine infecting the cricket Acheta domesticus
+# Gregarine infecting the cricket _Acheta domesticus_
 
-Images and Videos of showing the life cycle of this organism and different techniques linked to its control. Videos can be played on VLC media player for example (https://www.videolan.org/vlc/).
+Images and Videos showing the life cycle of gregarines infecting _A. domesticus_ and different techniques linked to its control. Videos can be played on VLC media player for example (https://www.videolan.org/vlc/).
