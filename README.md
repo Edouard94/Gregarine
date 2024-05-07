@@ -1,4 +1,8 @@
-# Gregarine infecting the cricket _Acheta domesticus_
+# Study of Eugregarine infecting the cricket _Acheta domesticus_
+
+This repository has been created to store diverse data linked to the study of eugregarines infecting Acheta domesticus.
+
+The bioassay folder contains the datasets from two experiments: a density experiment and a 'mesh experiment'. The latter was made with a system allowing gregarine-free crickets and a complete control of the infection.
 
 Images and Videos showing the life cycle of gregarines infecting _A. domesticus_ and different techniques linked to its control. Videos can be played on VLC media player for example (https://www.videolan.org/vlc/).
 
