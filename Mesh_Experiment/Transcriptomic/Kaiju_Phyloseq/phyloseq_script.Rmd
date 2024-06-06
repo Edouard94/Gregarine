@@ -1,0 +1,1668 @@
+---
+title: "2024_Cricket_Metatranscriptomics_Taxonomy"
+author: "Edouard Bessette, adapted from Morgane OURRY"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: yes
+    toc_float: yes
+  word_document:
+    toc: yes
+---
+
+```{r setup, include=FALSE}
+library(formatR)
+library(knitr)
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, tidy = TRUE, tidy.opts=list(width.cutoff=60),  fig.width = 6, fig.asp = 0.8, out.width = "80%")
+```
+
+**DATA INFORMATION**
+
+* Data:
+
+  - 2 treatments with two replicates per treatment - R1, R2, R3, R4
+  
+  - Each replicate had 8 crickets males 
+  
+  - Total RNA extraction: pool of 2 crickets gut
+
+# Step 0: Getting started
+
+## Packages
+
+* Import packages
+
+```{r message=FALSE, warning=FALSE}
+library("tidyverse")
+library("dplyr")
+library("ggplot2")
+library("broom")               #tidy function
+library("phyloseq")
+library("vegan")
+library("ranacapa")          # ggrare function
+library("microbiome")
+library("pairwiseAdonis")    # pairwiseAdonis function
+library("microViz")
+library("metacoder")         # heat_tree and heat_tree_matrix function
+library("RVAideMemoire")
+library("lmtest")
+library("lme4")
+library("car")
+library("emmeans")
+library("multcomp")
+```
+
+* Cite packages, which functions were used for the analyses or plots
+
+```{r eval=FALSE, message=FALSE, warning=FALSE, include=FALSE}
+citation("tidyverse")
+citation("dplyr")
+citation("ggplot2")
+citation("broom")
+citation("phyloseq")
+citation("vegan")
+citation("ranacapa")       # ggrare function
+citation("microbiome")
+citation("pairwiseAdonis")   # pairwiseAdonis function
+citation("microViz")  # tax_fix function
+citation("scales")  # log_trans function
+citation("RVAideMemoire")
+citation("lme4")
+citation("car")
+citation("emmeans")
+citation("multcomp")
+citation("metacoder")
+```
+
+## Load functions or generate useful objects
+
+* Function to calculate mean and standard error values to be used in barplots
+
+```{r}
+data_summary <- function(x) {
+  m <- mean(x)
+  ymin <- m-se(x)
+  ymax <- m+se(x)
+  return(c(y=m,ymin=ymin,ymax=ymax))
+}
+```
+
+* Convert phyloseq OTU table into vegan matrix (from the "QsRutils" package, cite: **Zhang, B., Penton, C.R., Xue, C., Quensen, J.F., Roley, S.S., Guo, J., Garoutte, A., Zheng, T., Tiedje, J.M., 2017. Soil depth and crop determinants of bacterial communities under ten biofuel cropping systems. Soil Biology & Biochemistry 112, 140-152.**)
+
+For OTU abundance tables, vegan expects samples as rows, and OTUs/species/taxa as columns (so does the picante package). The following is an example function, called veganotu, for extracting the OTU table from a phyloseq data object, and converting it to a properly oriented standard matrix recognized by the vegan package.
+
+```{r}
+veganotu = function(physeq) {
+  require("vegan")
+  OTU = otu_table(physeq)
+  if (taxa_are_rows(OTU)) {
+    OTU = t(OTU)
+  }
+  return(as(OTU, "matrix"))
+}
+```
+
+* Generate more colors
+
+```{r}
+# Define the number of colors you want
+num_colors <- 20  # Change this to the desired number of colors
+
+# Choose two Brewer palettes to blend
+palette1 <- RColorBrewer::brewer.pal(8, "Paired")
+palette2 <- RColorBrewer::brewer.pal(8, "Set2")
+
+# Interpolate between the two palettes to create a custom palette
+custom_palette <- grDevices::colorRampPalette(c(palette1, palette2))(num_colors)
+```
+
+
+# Step 1: Select metadata and make a phyloseq object
+
+## Loading and preparing data
+
+The "read_excel" from the "readxl" package creates a tibble object, which cannot be used with phyloseq so it is important to convert the tibble into a data frame object.
+
+```{r}
+#OTU count table
+otutab <- read.csv("all_samples_seperated.otu.tab", sep = "\t", row.names = 1, header = TRUE)
+OTU = otu_table(otutab, taxa_are_rows = TRUE)
+# Get the column names
+colnames <- colnames(otutab)
+# Sort the column names
+sorted_colnames <- sort(colnames)
+# Reorder the columns based on the sorted column names
+otutab <- otutab[, sorted_colnames]
+# Check the result
+head(otutab)
+
+#OTU taxonomy table
+taxtab <- read.csv("all_samples_seperated.tax.tab", sep = "\t", row.names = 1, header = TRUE)
+taxmat = as.matrix(taxtab)
+TAX = tax_table(taxmat)
+
+#Sample metadata table
+samples.metadata <-readxl::read_excel("metadata.xlsx", col_names = TRUE) %>%
+  mutate(across(c(SampleID:SampleCode:Cricket_pool:Treatment:Box_ID), \(x) as.factor(x))) %>% 
+  as.data.frame
+```
+
+## Matching metadata, taxonomy and OTU count tables
+
+```{r}
+str(samples.metadata)
+summary(samples.metadata)
+```
+
+### Check and identify metadata that matches the samples in the OTU count table
+
+* Compare the number of samples in the metadata table and in the OTU count table
+
+```{r}
+gplots::venn(list(metadata_table=samples.metadata$SampleCode, OTUcount_table=colnames(otutab)))
+```
+
+> The number of samples is the same in sample metadata table and in the OTU count table.
+
+### Check that we have the same number of OTUs in the taxonomy and the OTU count table
+
+```{r}
+nrow(otutab)
+nrow(taxtab)
+#Same number of rows
+```
+
+## Phyloseq
+
+### Prepare data
+
+* Phyloseq objects need to have row.names
+
+```{r}
+row.names(otutab)
+row.names(taxtab)
+row.names(samples.metadata)
+```
+
+The row names are not defined for the samples.metadata
+
+```{r}
+row.names(samples.metadata) <- samples.metadata$SampleCode
+row.names(samples.metadata)
+```
+
+### Make a phyloseq object
+
+* Transform to phyloseq objects
+
+```{r}
+OTU = otu_table(otutab, taxa_are_rows = TRUE)
+TAX = tax_table(taxmat)
+samples = sample_data(samples.metadata)
+
+physeq <- phyloseq(OTU, TAX, samples)
+physeq
+saveRDS(physeq, file = "kaiju.phyloseq.rds")
+```  
+
+### Look at the data
+
+* Assess sequencing depth
+
+```{r SeqDepth_plot, message=FALSE, warning=FALSE, dev="svg", fig.path="Figures/01_preliminary/"}
+pSeqDepth <- data.table::data.table(as(sample_data(physeq), "data.frame"),
+                      TotalReads = sample_sums(physeq))
+
+pSeqDepth_plot <-
+  ggplot(pSeqDepth, aes(TotalReads)) +
+  geom_histogram() +
+  labs(x = "Number of reads",
+       y = "Number of samples",
+       title = "Histogram of the sequencing Depth")
+pSeqDepth_plot
+```
+
+* Get total, minimum, median and maximum number of reads
+
+```{r}
+cat("The total sequencing depth of the dataset is:", sum(pSeqDepth$TotalReads), "reads.\n")
+cat("The minimum sequencing depth among all samples is:", min(pSeqDepth$TotalReads), "reads.\n")
+cat("The median sequencing depth among all samples is:", median(pSeqDepth$TotalReads), "reads.\n")
+cat("The maximum sequencing depth among all samples is:", max(pSeqDepth$TotalReads), "reads.\n")
+```
+
+* Get mean read depth after sequencing and before rarefying
+
+```{r}
+pSeqDepth.info <- pSeqDepth %>%
+  group_by(SampleID) %>%
+  dplyr::summarise(across(
+    .cols = TotalReads,
+    .fns = list(
+      min = ~ as.integer(min(.x)),
+      median = ~ as.integer(median(.x, na.rm = TRUE)),
+      max = ~ as.integer(max(.x)),
+      mean = ~ mean(.x, na.rm = TRUE),
+      se = se,
+      n = ~ sum(!is.na(.x))
+    )
+  )) %>% as.data.frame
+
+knitr::kable(pSeqDepth.info)
+write.table(pSeqDepth.info, file = "SeqDepth_info.txt", sep = ";", dec = ".")
+```
+
+# Step 2: check for the presence of singletons in the dataset and normalize data
+
+## Singletons
+
+```{r Singleton_check_plot, message=FALSE, warning=FALSE}
+tdt = data.table::data.table(tax_table(physeq),
+                 TotalCounts = taxa_sums(physeq),
+                 OTU = taxa_names(physeq))
+
+ggplot(tdt[tdt$TotalCounts < 15], aes(x = TotalCounts)) +
+  geom_bar() +
+  labs(x = "Number of reads",
+       y = "Number of OTUs",
+       title = "OTU Total Counts < 15")
+
+ggplot(tdt[tdt$TotalCounts < 100], aes(x = TotalCounts)) +
+  stat_count(geom = "point") +
+  labs(x = "Number of reads",
+       y = "Number of OTUs",
+       title = "OTU Total Counts < 100")
+
+ggplot(tdt[tdt$TotalCounts > 100], aes(x = TotalCounts)) +
+  stat_count(geom = "point") +
+  labs(x = "Number of reads",
+       y = "Number of OTUs",
+       title = "OTU Total Counts > 100")
+```
+
+* How many singletons in the dataset?
+
+```{r}
+nrow(tdt[tdt$TotalCounts == 0,])
+nrow(tdt[tdt$TotalCounts == 1,])
+
+min(tdt$TotalCounts)
+median(tdt$TotalCounts)
+max(tdt$TotalCounts)
+mean(tdt$TotalCounts)
+```
+
+> There are 4546 singletons. The mean OTUs number is of 1451.814.
+
+* How many doubletons?
+
+```{r}
+nrow(tdt[tdt$TotalCounts == 2,])
+```
+
+> 1919 doubletons - Should they be removed?
+
+* Remove singletons
+
+```{r}
+physeq_ns <- prune_taxa(taxa_sums(physeq) > 1, physeq)
+physeq
+physeq_ns #ns for no singleton
+```
+
+## Rarefying
+
+* Perform rarefaction curves and check that a plateau was obtained
+
+```{r Raref_curves, fig.height=5, fig.path="Figures/01_preliminary/", fig.width=12.5, message=FALSE, warning=FALSE, dev="png"}
+#Perform rarefaction curves
+rcurve <- ggrare(physeq_ns, step = 25, se = FALSE) +
+  geom_vline(xintercept = 752500) +
+  geom_line(aes(color=SampleCode))
+rcurve
+
+# Save the plot to an RDS file
+saveRDS(rcurve, "Figures/01_preliminary/rcurve.rds")
+# Load the plot from the RDS file
+rcurve <- readRDS("Figures/01_preliminary/rcurve.rds")
+# Modify the plot
+rcurve <- rcurve + theme_bw(base_family = "Times New Roman") +
+  labs(color = "Sample") # Change the legend title
+
+#ggsave("Figures/01_preliminary/rarefaction_curves.png", dpi = 500, width = 6, height = 4, units = "in")
+
+#Same number of sequences per sample
+##Trim at c.a. 753155
+```
+
+* Rarefy datasets
+
+```{r}
+physeq_r <- rarefy_even_depth(physeq_ns, sample.size = 752500, rngseed = 400)
+saveRDS(physeq_r, file = "physeq_r.rds")
+```
+
+## Look at the data
+
+```{r}
+physeq
+physeq_ns
+physeq_r
+```
+
+* Get mean read depth after rarefying
+
+```{r}
+pSeqDepth_r <- data.table::data.table(as(sample_data(physeq_r), "data.frame"),
+                      TotalReads = sample_sums(physeq_r), keep.rownames = TRUE)
+head(pSeqDepth_r)
+
+pSeqDepth_r.info <- pSeqDepth_r %>%
+  group_by(SampleID) %>%
+  dplyr::summarise(across(
+    .cols = TotalReads,
+    .fns = list(
+      min = ~ as.integer(min(.x)),
+      median = ~ as.integer(median(.x, na.rm = TRUE)),
+      max = ~ as.integer(max(.x)),
+      mean = ~ mean(.x, na.rm = TRUE),
+      se = se,
+      n = ~ sum(!is.na(.x))
+    )
+  )) %>% as.data.frame
+
+knitr::kable(pSeqDepth_r.info)
+```
+
+* Compare the number of samples before and after rarefying
+
+```{r}
+cat("There are", nrow(pSeqDepth.info) - nrow(pSeqDepth_r.info), "samples which are completely lost after rarefying as none of the replicates passed the rarefying threshold and a total of", ncol(otu_table(physeq)) - ncol(otu_table(physeq_r)), "samples replicates was removed.")
+
+lost_samples_to_rarefying <- left_join(x = pSeqDepth.info, y = pSeqDepth_r.info,
+          by = c("SampleID" = "SampleID"), keep = FALSE, unmatched = "error")
+#colnames(lost_samples_to_rarefying) <- c("SampleID", "Sample_number_Before", "Sample_number_After")
+#lost_samples_to_rarefying$Lost_sample_number <- lost_samples_to_rarefying$Sample_number_Before - lost_samples_to_rarefying$Sample_number_After
+
+#knitr::kable(lost_samples_to_rarefying)
+#write.table(lost_samples_to_rarefying, file = "Figures/01_preliminary/Raref_info.txt", sep = ";", dec = ".")
+```
+
+
+
+# Step 3: Alpha diversity
+
+> **Use of rarefied data to calculate alpha diversity indices.**
+
+
+## Data preparation
+
+* Indices calculation
+
+```{r}
+tab.alpha=estimate_richness(physeq_r, measures=c("Observed", "Shannon", "InvSimpson"))
+head(tab.alpha)
+```
+
+* Table for statistical analyses
+
+```{r}
+# Look at gregarine abundance and remove it for further analysis
+## Melt the phyloseq object into a long-format data frame
+df <- psmelt(physeq_r)
+# Trim whitespace in the 'Genus' column
+df$Genus <- trimws(df$Genus)
+## Subset the data to include only 'Gregarina'
+gregarina_data <- df[df$Genus == 'Gregarina', ]
+## Summarize the abundance of 'Gregarina' per sample
+gregarina_abundance <- gregarina_data %>%
+  group_by(SampleCode) %>%
+  summarise(Abundance = sum(Abundance))
+## Print the abundance
+print(gregarina_abundance)
+write.table(gregarina_abundance, file = "Figures/01_preliminary/Gregarina_abundance.txt", sep = ";")
+
+# For analyses purposes we remove the Apicomplexa OTUs
+library(phylosmith)
+physeq_r = taxa_prune(physeq_r, " Apicomplexa", "Phylum")
+# Check if the taxon was removed
+physeqr_tax_table <- tax_table(physeq_r)
+print(which(get_taxa_unique(physeq_r, "Phylum") == " Apicomplexa"))
+print(physeqr_tax_table[,"Phylum"])
+
+tab.alpha.stat <- cbind(sample_data(physeq_r),tab.alpha) 
+head(tab.alpha.stat)
+dim(tab.alpha.stat)
+summary(tab.alpha.stat)
+```
+
+* Table for plotting with ggplot
+
+```{r}
+tab.alpha.plot=gather(tab.alpha.stat, key="Alpha_diversity_indices", value="Index_value",Observed:InvSimpson)
+str(tab.alpha.plot)
+tab.alpha.plot$Alpha_diversity_indices <- as.factor(tab.alpha.plot$Alpha_diversity_indices)
+tab.alpha.plot$Alpha_diversity_indices <- factor(tab.alpha.plot$Alpha_diversity_indices, levels = c("Observed", "Shannon", "InvSimpson"))
+head(tab.alpha.plot)
+```
+
+* Info about the different values of alpha diversity indices
+
+```{r}
+alpha.div.info <- tab.alpha.stat %>%
+  group_by(SampleID) %>%
+  dplyr::summarise(across(
+    .cols = Observed:InvSimpson,
+    .fns = list(
+      min = ~ min(.x),
+      median = ~ median(.x, na.rm = TRUE),
+      max = ~ max(.x),
+      mean = ~ mean(.x, na.rm = TRUE),
+      se = se,
+      n = ~ sum(!is.na(.x))
+    )
+  )) %>% as.data.frame
+
+knitr::kable(alpha.div.info)
+dir.create("Figures/02_alphadiv/")
+write.table(alpha.div.info, file = "Figures/02_alphadiv/AlphaDiv_info.txt", sep = ";", dec = ".")
+```
+
+
+## Statistical analyses - univariate analyses
+
+**What to check to validate a model?**
+
+* Independence on plot 1 of plotresid function: red line must be straight and horizontal
+
+* Homoscedasticity on plot 1 of plotresid function: the width of the cloud of dots must be homogenous along the horozontal red line
+
+* Normality on plot 2 of plotresid function: dots must be close to blue diagonal line inside the blue area 
+
+* Absence of overdispersion (overdisp.glmer function): ratio must be lower than 1.5; if higher and do not know what to do, then rowID can be  used as a random factor
+
+
+**How to validate the model?**
+
+* linear model (lm) --> check normality, homoscedasticity, independence
+
+* linear mixed model (lmer) --> check normality, homoscedasticity
+
+* generalized linear model (glm) --> check independence
+
+* generalized linear mixed model (glmer) --> check absence of overdispersion 
+
+* whenever glmer failed to converge, after trying to deal with overdispersion (ID), quasipoisson family ("glmmPQL" function) was used with the replicate as a random factor.
+
+**Type II Analysis of Variance**
+
+* linear model (lm) --> F test
+
+* generalized linear model (glm) --> likelihood-ratio chisquare test
+
+* generalized linear mixed model (glmer) --> Wald chisquare test
+
+* Generalized Linear Mixed Models via Penalized Quasi-Likelihood (glmmPQL) --> Wald chisquare test
+
+### Observed OTUs
+
+* Check data distribution
+
+```{r Distribution_Observed, dev="svg", fig.path="Figures/02_alphadiv/"}
+hist(tab.alpha.stat$Observed)
+```
+
+> Normal distribution so linear model
+
+* Linear Models
+
+```{r}
+mod.ObsOTU_T <- lmer(sqrt(Observed) ~ Treatment + (1|Box_ID), data = tab.alpha.stat)
+```
+
+* Validate model
+
+```{r}
+plotresid(mod.ObsOTU_T, shapiro = TRUE)
+```
+
+* Type II analysis of variance
+
+```{r}
+Anova(mod.ObsOTU_T,type="II")
+```
+
+* Pairwise comparisons
+
+```{r}
+pairwise_comp <- emmeans(mod.ObsOTU_T, pairwise ~ Treatment, type="response")
+pairwise_comp
+multcomp::cld(emmeans(mod.ObsOTU_T, pairwise ~ Treatment, type = "response")$emmeans,adjust="fdr", Letters = letters)
+```
+
+### Shannon index
+
+* Check data distribution
+
+```{r Distribution_Shannon, dev="svg", fig.path="Figures/02_alphadiv/"}
+hist(tab.alpha.stat$Shannon)
+```
+
+> Normal distribution so linear model
+
+* Linear Models
+
+```{r}
+mod.Shan_T <- lmer(Shannon ~ Treatment + (1|Box_ID), data = tab.alpha.stat)
+```
+
+* Validate model
+
+```{r}
+plotresid(mod.Shan_T, shapiro = TRUE)
+```
+
+* Type II analysis of variance
+
+```{r}
+Anova(mod.Shan_T,type="II")
+```
+
+### InvSimpson
+
+* Check data distribution
+
+```{r Distribution_InvSimpson, dev="svg", fig.path="Figures/02_alphadiv/"}
+hist(tab.alpha.stat$InvSimpson)
+```
+
+> Normal distribution so linear model
+
+
+* Linear Models
+
+```{r}
+mod.InvSimp_T <- lmer(InvSimpson ~ Treatment + (1|Box_ID), data = tab.alpha.stat)
+```
+
+* Validate model
+
+```{r}
+plotresid(mod.InvSimp_T, shapiro = TRUE)
+```
+
+* Type II analysis of variance
+
+```{r}
+Anova(mod.InvSimp_T,type="II")
+```
+
+### Create a table that compiles all the above statistical outputs from the Anova objects
+
+* Function to extract results
+
+```{r}
+get.univariate.results <- function(model) {
+  cbind(
+    `Response (y)` = deparse(summary(model)$call$formula[[2]]),
+    `Model` = as.character(summary(model)$call[[1]]),
+    Formula = paste ("y ~", deparse(summary(model)$call$formula[[3]])),
+    car::Anova(model, type = "II") %>%
+      broom::tidy() %>%
+      dplyr::mutate(
+        statistic = round(statistic, digits = 2),
+        signif = gtools::stars.pval(p.value),
+        p.value = round(p.value, digits = 3),
+        p.value = format.pval(p.value, digits = 3)
+      )
+  ) %>%
+    dplyr::mutate(
+      random_effects = paste(names(VarCorr(model)), collapse = ", "),
+      variances = paste(format(VarCorr(model), digits = 2), collapse = ", ")
+    ) %>%
+    as.data.frame
+}
+```
+
+* Create a list that contains all models
+
+```{r}
+mod.ObsOTU = list(mod.ObsOTU_T)
+mod.Shan = list(mod.Shan_T)
+mod.InvSimp = list(mod.InvSimp_T)
+
+alpha.div.model <- c(mod.ObsOTU, mod.Shan, mod.InvSimp)
+```
+
+* Apply the function to the list
+
+```{r message=FALSE, warning=FALSE}
+univariate.output <- purrr::map(.x = alpha.div.model, .f = get.univariate.results) %>%
+  dplyr::bind_rows()
+univariate.output <- dplyr::rename(univariate.output, c(Factor = term, `F value` = statistic, `P value`= p.value))
+
+knitr::kable(univariate.output)
+write.table(univariate.output, file = "Figures/02_alphadiv/AlphaDiv_stat.txt", sep = ";", dec = ".")
+```
+
+> `.`: 0.05 < P < 0.1; `*`: 0.01 < P < 0.05; `**`: 0.001 < P < 0.01; `***`: 0.001 < P
+
+## Plots
+
+### All factors: SampleID + Treatment
+
+```{r AlphaDiv_plot1, fig.height=7.5, fig.width=15, dev="svg", fig.path="Figures/02_alphadiv/"}
+alpha.plot.all <- ggplot(tab.alpha.plot, aes (x=SampleCode, y=Index_value, fill=Treatment)) +
+  stat_summary(fun.data=data_summary, geom="bar", position="dodge", width = 0.75, color = "black") +
+  stat_summary(fun.data=data_summary, geom="errorbar", width=0.2, position=position_dodge(0.75), color = "black") +
+  scale_fill_brewer(palette = "Paired") +
+  labs(title = "Alpha diversity",
+    x = "SampleCode",
+    y = expression(paste("Index value (mean ", phantom(.) %+-% phantom(.), "se)")),
+    fill = "Treatment:") +
+  theme_classic() +
+  theme(axis.title.x = element_text(size = 15,family="serif",vjust = -1),
+        axis.title.y = element_text(size = 15, family="serif"),
+        legend.title = element_text(size = 15, family="serif"),
+        plot.title = element_text(size = 17.5, hjust=0.5,family="serif"),
+        axis.text.x = element_text(colour = "black", size=12.5,family="serif", vjust = 0.5, hjust = 1, angle = 90),
+        axis.text.y = element_text(colour = "black", size=12.5,family="serif"),
+        legend.text = element_text(colour = "black", size=12.5,family="serif"),
+        strip.text.x = element_text(size = 10, colour = "black",family="serif"),
+        strip.text.y = element_text(size = 12.5, colour = "black",family="serif"),
+        legend.position="bottom") +
+  facet_grid(Alpha_diversity_indices ~ Treatment, scales = "free", labeller = label_wrap_gen(1))
+alpha.plot.all
+#ggsave("Figures/02_alphadiv/alpha_plot.png")
+```
+
+# Step 4: Beta diversity
+
+* Available distance
+
+```{r}
+print(unlist(distanceMethodList))
+```
+
+## Supported Ordination Methods
+
+https://joey711.github.io/phyloseq/plot_ordination-examples.html#supported_ordination_methods
+
+## Weighted analysis: NMDS and Bray Curtis distance on OTU abundance
+
+### Plot
+
+* Calculation of the distance matrix
+
+```{r}
+ord.nmds.bray <- ordinate(physeq = physeq_r, method = "NMDS", distance = "bray", weighted=TRUE)
+```
+
+* Plot SampleCode + Treatment
+
+```{r BetaDiv_Bray_plot1, fig.height=5, fig.width=7.5, dev="svg", fig.path="Figures/03_betadiv/"}
+beta_bray.plot.TM <- plot_ordination(physeq_r, ord.nmds.bray, type="samples",
+                                          color="SampleCode", shape="Treatment") +
+   labs(title = "Beta diversity - Bray curtis - NMDS"
+    ) +
+  theme_bw(base_family = "Times New Roman") + 
+  #scale_color_brewer(palette = "Paired") +
+  theme(
+    axis.title.x = element_text(size = 15, family = "serif", vjust = -1),
+    axis.title.y = element_text(size = 15, family = "serif", hjust = 0.5, vjust = 0.5), 
+    legend.title = element_text(size = 15, family = "serif"),
+    plot.title = element_text(size = 15, family = "serif", hjust = 0.5, vjust = 0.5),
+   axis.text.x = element_text(colour = "black", size = 12, family = "serif", angle = 0, hjust = 0.5, vjust = 0.5),
+    axis.text.y = element_text(colour = "black", size = 12, family = "serif"),
+    strip.text.x = element_text(colour = "black", size = 12, family = "serif"),
+    strip.text.y = element_text(colour = "black", size = 12, family = "serif"),
+    legend.text = element_text(colour = "black", size = 10, family = "serif", hjust = 0)
+  ) +
+  guides(shape = guide_legend(order=2, ncol=2),  # Arrange the shape legend in 2 rows
+         color = guide_legend(order=1, ncol=2)   # Arrange the color legend in 2 rows
+         )
+beta_bray.plot.TM
+#ggsave("Figures/03_betadiv/beta_plot.png", dpi = 500, width = 6, height = 4, units = "in")
+```
+
+### Statistical analysis
+
+* Extract the distance matrix from the phyloseq object
+
+````{r}
+dist.bray <- phyloseq::distance(physeq_r, method = "bray")
+````
+
+* Extract metadata of phyloseq object of interest as data frame
+
+````{r}
+metadata_physeq_r <- as(sample_data(physeq_r), "data.frame")
+````
+
+* Perform Permutational Multivariate Analysis of Variance Using Distance Matrices
+
+````{r}
+set.seed(2024)
+adonis.bray_T <- vegan::adonis2(dist.bray ~ Treatment, data = metadata_physeq_r, perm=999)
+adonis.bray_T
+````
+
+* Pairwise multilevel comparison using adonis
+
+```{r message=FALSE, warning=FALSE}
+pairwiseAdonis::pairwise.adonis(x = dist.bray, factors = metadata_physeq_r$Treatment, p.adjust.m = "fdr", perm = 999)
+set.seed(2024)
+```
+
+## Unweighted analysis: NMDS and Hellinger distance on OTU presence absence
+
+Explanation of Hellinger transformation: particularly suited to species abundance data, this transformation gives low weights to variables with low counts and many zeros. 
+
+* Hellinger transformation (see https://www.davidzeleny.net/anadat-r/doku.php/en:data_preparation)
+
+```{r}
+physeq_r.0.1 <- transform_sample_counts(physeq_r, function(abund) 1*(abund>0))
+physeq_r.hell <- transform_sample_counts(physeq_r.0.1, function(x) sqrt(x / sum(x)))
+```
+
+### Plot
+
+```{r}
+ord_nmds.hell <- ordinate(physeq = physeq_r.hell, method = "NMDS", distance = "euclidean")
+```
+
+* Plot SampleCode + Treatment
+
+```{r BetaDiv_Hell_plot1, fig.height=5, fig.width=7.5, dev="svg", fig.path="Figures/03_betadiv/"}
+beta_hell.plot.T <- plot_ordination(physeq_r.hell, ord_nmds.hell, type="samples",
+                                          color="SampleCode", shape="Treatment") +
+   labs(title = "Beta diversity - Hellinger - NMDS") +
+  theme_bw(base_family = "Times New Roman") + 
+  #scale_color_brewer(palette = "Paired") +
+  theme(
+    axis.title.x = element_text(size = 15, family = "serif", vjust = -1),
+    axis.title.y = element_text(size = 15, family = "serif", hjust = 0.5, vjust = 0.5), 
+    legend.title = element_text(size = 15, family = "serif"),
+    plot.title = element_text(size = 15, family = "serif", hjust = 0.5, vjust = 0.5),
+    axis.text.x = element_text(colour = "black", size = 12, family = "serif", angle = 0, hjust = 0.5, vjust = 0.5),
+    axis.text.y = element_text(colour = "black", size = 12, family = "serif"),
+    strip.text.x = element_text(colour = "black", size = 12, family = "serif"),
+    strip.text.y = element_text(colour = "black", size = 12, family = "serif"),
+    legend.text = element_text(colour = "black", size = 10, family = "serif", hjust = 0)
+  ) +
+  guides(shape = guide_legend(order=2, ncol=2),  # Arrange the shape legend in 2 rows
+         color = guide_legend(order=1, ncol=2)   # Arrange the color legend in 2 rows
+         )
+beta_hell.plot.T
+#ggsave("Figures/03_betadiv/beta_hell_plot.png", dpi = 500, width = 6, height = 4, units = "in")
+```
+
+### Statistical analysis
+
+* Extract the distance matrix from the phyloseq object
+
+````{r}
+dist.Hell <- vegdist(veganotu(physeq_r.0.1), "hellinger")
+````
+
+* Extract metadata of phyloseq object of interest as data frame
+
+```{r}
+metadata_physeq_r <- as(sample_data(physeq_r), "data.frame")
+```
+
+* Perform Permutational Multivariate Analysis of Variance Using Distance Matrices
+
+```{r}
+set.seed(2024)
+adonis.Hell_T <- vegan::adonis2(dist.Hell ~ Treatment, data = metadata_physeq_r, perm=999)
+adonis.Hell_T
+```
+
+* Pairwise multilevel comparison using adonis
+
+```{r message=FALSE, warning=FALSE}
+set.seed(2024)
+pairwiseAdonis::pairwise.adonis(x = dist.Hell, factors = metadata_physeq_r$Treatment, p.adjust.m = "fdr", perm = 999)
+```
+
+## Create a table that compiles all the above statistical outputs from the Anova objects
+
+* Function to extract results
+
+```{r}
+get.multivariate.results <- function(model) {
+  cbind(
+    `Response (y)` = stringr::str_match(
+        base::attr(model, "heading")[2], "=\\s*(.*?)\\s*~")[,2],
+    `Function` = "adonis2",
+    Formula = paste("y ~", stringr::str_match(
+        base::attr(model, "heading")[2], "~\\s*(.*?)\\s*,")[,2]),
+    model %>%
+      broom::tidy() %>%
+      dplyr::mutate(
+        statistic = round(statistic, digits = 2),
+        signif = gtools::stars.pval(p.value),
+        p.value = round(p.value, digits = 3),
+        p.value = format.pval(p.value, digits = 3),
+        SumOfSqs = round(SumOfSqs, digits = 3),
+        R2 = round(R2, digits = 3)
+      ) ) %>%
+      dplyr::select(-SumOfSqs) %>%
+      as.data.frame
+}
+```
+
+* Create a list that contains all models
+
+```{r}
+mod.bray = list(adonis.bray_T)
+mod.hell = list(adonis.Hell_T)
+
+beta.div.model <- c(mod.bray, mod.hell)
+```
+
+* Apply the function to the list
+
+```{r message=FALSE, warning=FALSE}
+multivariate.output <- purrr::map(.x = beta.div.model, .f = get.multivariate.results) %>%
+  dplyr::bind_rows()
+multivariate.output <- dplyr::rename(multivariate.output, c(Factor = term, `F value` = statistic, `P value`= p.value))
+
+knitr::kable(multivariate.output)
+write.table(multivariate.output, file = "Figures/03_betadiv/BetaDiv_stat.txt", sep = ";", dec = ".")
+```
+
+> `.`: 0.05 < P < 0.1; `*`: 0.01 < P < 0.05; `**`: 0.001 < P < 0.01; `***`: 0.001 < P
+
+
+
+# Step 5: Relative abundance plots
+
+
+## Phylum - relative abundance higher than 1% (else, classified as "others")
+
+
+### Prepare data
+
+* Give a new name to the phyloseq object
+
+```{r}
+physeq_RA_Phylum <- physeq_r
+```
+
+* Rename NAs: Identifies phyloseq tax_table values as unknown or uninformative and replaces them with the first informative value from a higher taxonomic rank
+
+```{r message=FALSE, warning=FALSE}
+tax_table(physeq_RA_Phylum) <- microViz::tax_fix(physeq_RA_Phylum, unknowns = NA, suffix_rank = "current", anon_unique = FALSE)
+```
+
+* Merge species that have the same taxonomy at a certain taxonomic rank and convert the read data into compositional data
+
+```{r}
+RA_Phylum.glom <- tax_glom(physeq_RA_Phylum, taxrank = 'Phylum')
+RA_Phylum.glom <- microbiome::transform(x = RA_Phylum.glom, transform = "compositional", target = "OTU")
+```
+
+* Create dataframe from phyloseq object
+
+```{r}
+RA_Phylum.tab <- data.table::data.table(psmelt(RA_Phylum.glom))
+```
+
+* Calculate the median abundance and classify the taxa as "Others" when median abundance of a taxa is less than 0.1% (0.001)
+
+```{r}
+# convert Phylum to a character vector from a factor because R
+RA_Phylum.tab$Phylum <- as.character(RA_Phylum.tab$Phylum)
+# group dataframe by Phylum, calculate median rel. abundance
+RA_Phylum.tab[, median := median(Abundance, na.rm = TRUE), 
+    by = "Phylum"]
+# Change name to Others of Phylum less than 0.1%
+RA_Phylum.tab[(median <= 0.001), Phylum := "Others"]
+```
+
+### Barplot
+
+* All samples
+
+```{r RA_barplot_phylum1, fig.height=7.5, fig.width=15, dev="svg", fig.path="Figures/04_RA/"}
+# Specify the order of the levels
+levels_order <- c("R1_1", "R1_2", "R1_3", "R1_4", "R2_1", "R2_2", "R2_3", "R2_4", "R3_1", "R3_2", "R3_3", "R3_4", "R4_1", "R4_2", "R4_3", "R4_4")
+levels_order1 <- c("Non_exposed", "Exposed")
+
+# Convert SampleCode to a factor and specify the levels
+RA_Phylum.tab$SampleCode <- factor(RA_Phylum.tab$SampleCode, levels = levels_order)
+RA_Phylum.tab$Treatment <- factor(RA_Phylum.tab$Treatment, levels = levels_order1)
+
+RA_Phylum.samples.plot <- ggplot(RA_Phylum.tab,
+       aes (
+         x = SampleCode,
+         y = Abundance,
+         fill = Phylum
+       )) +
+  geom_bar(
+           stat = "identity",
+    position = "stack",
+    width = 0.75,
+    color = "black"
+  ) + 
+  upstartr::scale_y_percent() +
+  scale_fill_manual(values = custom_palette) +
+  labs(title = "Relative abundance",
+    x = "Samples",
+    y = "Relative abundance",
+    fill = "Phyla:") +
+  theme_classic() +
+  theme(axis.title.x = element_text(size = 15,family="serif",vjust = -1),
+        axis.title.y = element_text(size = 15, family="serif"),
+        legend.title = element_text(size = 15, family="serif"),
+        plot.title = element_text(size = 17.5, hjust=0.5,family="serif"),
+        axis.text.x = element_text(colour = "black", size=10,family="serif", angle=45, vjust=0.5),
+        axis.text.y = element_text(colour = "black", size=12,family="serif"),
+        legend.text = element_text(colour = "black", size=12,family="serif"),
+        strip.text.x = element_text(size = 9, colour = "black",family="serif"),
+        legend.position="bottom") +
+  facet_grid(. ~ Treatment, scales = "free", space = "fixed", switch = "y", labeller = label_wrap_gen(1))
+RA_Phylum.samples.plot
+#ggsave("Figures/04_RA/barplot_all_samples_0.1perc.png", dpi = 500, width = 10, height = 10, units = "in")
+```
+
+> There are several Others layers in the barplots because it corresponds to all the phyla relabelled as Others.
+
+* Mean value per group
+
+```{r RA_barplot_phylum2, fig.height=7.5, fig.width=15, dev="svg", fig.path="Figures/04_RA/"}
+RA_Phylum.mean.plot1 <- ggplot(RA_Phylum.tab,
+       aes (
+         x = paste(Treatment, sep = "\n"),
+         y = Abundance,
+         fill = Phylum
+       )) +
+  stat_summary(
+    fun.data = data_summary,
+    geom = "bar",
+    position = "stack",
+    width = 0.75,
+    color = "black"
+  ) + 
+  upstartr::scale_y_percent() +
+  scale_fill_manual(values = custom_palette) +
+  labs(title = "Relative abundance",
+    x = "Field variable",
+    y = "Average relative abundance",
+    fill = "Phyla:") +
+  theme_classic() +
+  theme(axis.title.x = element_text(size = 15,family="serif",vjust = -1),
+        axis.title.y = element_text(size = 15, family="serif"),
+        legend.title = element_text(size = 15, family="serif"),
+        plot.title = element_text(size = 17.5, hjust=0.5,family="serif"),
+        axis.text.x = element_blank(),
+        axis.text.y = element_text(colour = "black", size=12.5,family="serif"),
+        legend.text = element_text(colour = "black", size=12.5,family="serif"),
+        strip.text.x = element_text(size = 10, colour = "black",family="serif"),
+        legend.position="bottom") +
+  facet_grid(. ~ Treatment, scales = "free", space = "free", switch = "y", labeller = label_wrap_gen(1))
+RA_Phylum.mean.plot1
+#ggsave("Figures/04_RA/barplot.png", dpi = 500, width = 10, height = 20, units = "in")
+```
+
+* Domain + Phylum (without Others category)
+
+```{r RA_barplot_phylum3, fig.height=10, fig.width=15, dev="svg", fig.path="Figures/04_RA/"}
+#Re-order class levels according to the Phylum levels
+RA_Phylum.tab$Phylum <- factor(RA_Phylum.tab$Phylum, levels=unique(RA_Phylum.tab$Phylum[order(RA_Phylum.tab$Domain)]), ordered=TRUE)
+
+RA_Phylum.mean.plot2 <- ggplot(RA_Phylum.tab[RA_Phylum.tab$Phylum != "Others",],
+       aes (
+         x = paste(Treatment, sep = "\n"),
+         y = Abundance,
+         fill = Phylum
+       )) +
+  stat_summary(
+    fun.data = data_summary,
+    geom = "bar",
+    position = "stack",
+    width = 0.75,
+    color = "black"
+  ) + 
+  upstartr::scale_y_percent() +
+  scale_fill_manual(values = custom_palette) +
+  labs(title = "Relative abundance: Domain + Phylum",
+    x = "Treatment",
+    y = "Average relative abundance",
+    fill = "Phyla:") +
+  theme_classic() +
+  theme(axis.title.x = element_text(size = 15,family="serif",vjust = -1),
+        axis.title.y = element_text(size = 15, family="serif"),
+        legend.title = element_text(size = 15, family="serif"),
+        plot.title = element_text(size = 17.5, hjust=0.5,family="serif"),
+        axis.text.x = element_blank(),
+        axis.text.y = element_text(colour = "black", size=10,family="serif"),
+        legend.text = element_text(colour = "black", size=12.5,family="serif"),
+        strip.text.x = element_text(size = 10, colour = "black",family="serif"),
+        strip.text.y = element_text(size = 10, colour = "black",family="serif", angle = 0),
+        legend.position="bottom") +
+  guides(fill = guide_legend(nrow = 3)) +
+  facet_grid(Domain ~ Treatment, scales = "free", labeller = label_wrap_gen(1))
+RA_Phylum.mean.plot2
+#ggsave("Figures/04_RA/barplot_mean.png", dpi = 500, width = 10, height = 11, units = "in")
+```
+
+## Virus domain
+
+```{r}
+# Filter the data frame to include only viruses
+virus_df <- RA_Phylum.tab[RA_Phylum.tab$Domain == "Viruses", ]
+
+# Specify the order of the levels
+levels_order <- c("R1_1", "R1_2", "R1_3", "R1_4", "R2_1", "R2_2", "R2_3", "R2_4", "R3_1", "R3_2", "R3_3", "R3_4", "R4_1", "R4_2", "R4_3", "R4_4")
+levels_order1 <- c("Non_exposed", "Exposed")
+
+# Convert SampleCode to a factor and specify the levels
+virus_df$SampleCode <- factor(virus_df$SampleCode, levels = levels_order)
+virus_df$Treatment <- factor(virus_df$Treatment, levels = levels_order1)
+
+# Create a bar plot
+virus_plot <- ggplot(virus_df, aes (
+  x = SampleCode,
+  y = Abundance,
+  fill = Phylum
+)) +
+   geom_bar(
+           stat = "identity",
+    position = "stack",
+    width = 0.7,
+    color = "black"
+  ) + 
+  upstartr::scale_y_percent() +
+  scale_fill_manual(values = custom_palette) +
+  labs(title = "Abundance: Viruses",
+    x = "Samples",
+    y = "Abundance",
+    fill = "Phyla:") +
+  theme_classic() +
+  theme(axis.title.x = element_text(size = 15,family="serif",vjust = -1),
+        axis.title.y = element_text(size = 15, family="serif"),
+        legend.title = element_text(size = 15, family="serif"),
+        plot.title = element_text(size = 17.5, hjust=0.5,family="serif"),
+        axis.text.x = element_text(colour = "black", size=10,family="serif", angle=45, vjust=0.5),
+        axis.text.y = element_text(colour = "black", size=12,family="serif"),
+        legend.text = element_text(colour = "black", size=10,family="serif"),
+        strip.text.x = element_text(size = 9, colour = "black",family="serif"),
+        legend.position="bottom") +
+  facet_grid(. ~ Treatment, scales = "free", space = "fixed", switch = "y", labeller = label_wrap_gen(1))
+virus_plot
+#ggsave("Figures/04_RA/barplot_virus.png", dpi = 500, width = 6.6, height = 5, units = "in")
+```
+
+## Class - relative abundance higher than 1% (else, classified as "others")
+
+### Prepare data
+
+* Give a new name to the phyloseq object
+
+```{r}
+physeq_RA_Class <- physeq_r
+```
+
+* Rename NAs: Identifies phyloseq tax_table values as unknown or uninformative and replaces them with the first informative value from a higher taxonomic rank
+
+```{r message=FALSE, warning=FALSE}
+tax_table(physeq_RA_Class) <- microViz::tax_fix(physeq_RA_Class, unknowns = NA, suffix_rank = "current", anon_unique = FALSE)
+```
+
+* Merge species that have the same taxonomy at a certain taxonomic rank and convert the read data into compositional data
+
+```{r}
+RA_Class.glom <- tax_glom(physeq_RA_Class, taxrank = 'Class')
+RA_Class.glom <- microbiome::transform(x = RA_Class.glom, transform = "compositional", target = "OTU")
+```
+
+* Create dataframe from phyloseq object
+
+```{r}
+RA_Class.tab <- data.table::data.table(psmelt(RA_Class.glom))
+```
+
+* Calculate the median abundance and classify the taxa as "Others" when median abundance of a taxa is less than 1% (i.e. 0.01)
+
+```{r}
+# convert Class to a character vector from a factor because R
+RA_Class.tab$Class <- as.character(RA_Class.tab$Class)
+# group dataframe by Class, calculate median rel. abundance
+RA_Class.tab[, median := median(Abundance, na.rm = TRUE), 
+    by = "Class"]
+# Change name to Others of Class less than 1%
+RA_Class.tab[(median <= 0.01), Class := "Others"]
+RA_Class.tab[(median <= 0.01), Phylum := "Others"]
+```
+
+* Convert and re-oder the taxonomy levels
+
+```{r}
+str(RA_Class.tab)
+RA_Class.tab$Phylum <- as.factor(RA_Class.tab$Phylum)
+RA_Class.tab$Class <- as.factor(RA_Class.tab$Class)
+
+levels(RA_Class.tab$Phylum)
+levels(RA_Class.tab$Class)
+```
+
+### Barplot
+
+* All samples
+
+```{r RA_barplot_class1, fig.height=7.5, fig.width=15, dev="svg", fig.path="Figures/04_RA/"}
+RA_Class.samples.plot <- ggplot(RA_Class.tab,
+       aes (
+         x = SampleCode,
+         y = Abundance,
+         fill = Class
+       )) +
+  geom_bar(
+           stat = "identity",
+    position = "stack",
+    width = 0.75,
+    color = "black"
+  ) + 
+  upstartr::scale_y_percent() +
+  scale_fill_manual(values = custom_palette) +
+  labs(title = "Relative abundance",
+    x = "Samples",
+    y = "Relative abundance",
+    fill = "Classes:") +
+  theme_classic() +
+  theme(axis.title.x = element_text(size = 15,family="serif",vjust = -1),
+        axis.title.y = element_text(size = 15, family="serif"),
+        legend.title = element_text(size = 15, family="serif"),
+        plot.title = element_text(size = 17.5, hjust=0.5,family="serif"),
+        axis.text.x = element_blank(),
+        axis.text.y = element_text(colour = "black", size=12.5,family="serif"),
+        legend.text = element_text(colour = "black", size=12.5,family="serif"),
+        strip.text.x = element_text(size = 9, colour = "black",family="serif"),
+        legend.position="bottom") +
+  guides(fill = guide_legend(nrow = 3)) +
+  facet_grid(. ~ Treatment, scales = "free", space = "fixed", labeller = label_wrap_gen(1))
+RA_Class.samples.plot
+```
+
+* Mean value per group
+
+```{r RA_barplot_class2, fig.height=7.5, fig.width=15, dev="svg", fig.path="Figures/04_RA/"}
+RA_Class.mean.plot1 <- ggplot(RA_Class.tab,
+       aes (
+         x = paste(Treatment, sep = "\n"),
+         y = Abundance,
+         fill = Class
+       )) +
+  stat_summary(
+    fun.data = data_summary,
+    geom = "bar",
+    position = "stack",
+    width = 0.75,
+    color = "black"
+  ) + 
+  upstartr::scale_y_percent() +
+  scale_fill_manual(values = custom_palette) +
+  labs(title = "Relative abundance",
+    x = "Field variable",
+    y = "Average relative abundance",
+    fill = "Classes:") +
+  theme_classic() +
+  theme(axis.title.x = element_text(size = 15,family="serif",vjust = -1),
+        axis.title.y = element_text(size = 15, family="serif"),
+        legend.title = element_text(size = 15, family="serif"),
+        plot.title = element_text(size = 17.5, hjust=0.5,family="serif"),
+        axis.text.x = element_blank(),
+        axis.text.y = element_text(colour = "black", size=12.5,family="serif"),
+        legend.text = element_text(colour = "black", size=12.5,family="serif"),
+        strip.text.x = element_text(size = 10, colour = "black",family="serif"),
+        strip.text.y = element_text(size = 10, colour = "black",family="serif"),
+        legend.position="bottom") +
+  guides(fill = guide_legend(nrow = 3)) +
+  facet_grid(. ~Treatment, scales = "free", space = "free", labeller = label_wrap_gen(1))
+RA_Class.mean.plot1
+```
+
+* Class + Phylum (without Others category)
+
+```{r RA_barplot_class3, fig.height=10, fig.width=15, dev="svg", fig.path="Figures/04_RA/"}
+#Re-order class levels according to the Phylum levels
+RA_Class.tab$Class <- factor(RA_Class.tab$Class, levels=unique(RA_Class.tab$Class[order(RA_Class.tab$Phylum)]), ordered=TRUE)
+
+RA_Class.mean.plot2 <- ggplot(RA_Class.tab[RA_Class.tab$Phylum != "Others",],
+       aes (
+         x = paste(Treatment, sep = "\n"),
+         y = Abundance,
+         fill = Class
+       )) +
+  stat_summary(
+    fun.data = data_summary,
+    geom = "bar",
+    position = "stack",
+    width = 0.75,
+    color = "black"
+  ) + 
+  upstartr::scale_y_percent() +
+  scale_fill_manual(values = custom_palette) +
+  labs(title = "Relative abundance: Phylum + Class",
+    x = "Field variable",
+    y = "Average relative abundance",
+    fill = "Classes:") +
+  theme_classic() +
+  theme(axis.title.x = element_text(size = 15,family="serif",vjust = -1),
+        axis.title.y = element_text(size = 15, family="serif"),
+        legend.title = element_text(size = 15, family="serif"),
+        plot.title = element_text(size = 17.5, hjust=0.5,family="serif"),
+        axis.text.x = element_blank(),
+        axis.text.y = element_text(colour = "black", size=10,family="serif"),
+        legend.text = element_text(colour = "black", size=12.5,family="serif"),
+        strip.text.x = element_text(size = 10, colour = "black",family="serif"),
+        strip.text.y = element_text(size = 10, colour = "black",family="serif", angle = 0),
+        legend.position="bottom") +
+  guides(fill = guide_legend(nrow = 3)) +
+  facet_grid(Phylum ~ Treatment, scales = "free", labeller = label_wrap_gen(1))
+RA_Class.mean.plot2
+```
+
+
+## Family - relative abundance higher than 1% (else, classified as "others")
+
+### Prepare data
+
+* Give a new name to the phyloseq object
+
+```{r}
+physeq_RA_Family <- physeq_r
+```
+
+* Rename NAs: Identifies phyloseq tax_table values as unknown or uninformative and replaces them with the first informative value from a higher taxonomic rank
+
+```{r message=FALSE, warning=FALSE}
+tax_table(physeq_RA_Family) <- microViz::tax_fix(physeq_RA_Family, unknowns = NA, suffix_rank = "current", anon_unique = FALSE)
+```
+
+* Merge species that have the same taxonomy at a certain taxonomic rank and convert the read data into compositional data
+
+```{r}
+RA_Family.glom <- tax_glom(physeq_RA_Family, taxrank = 'Family')
+RA_Family.glom <- microbiome::transform(x = RA_Family.glom, transform = "compositional", target = "OTU")
+```
+
+* Create dataframe from phyloseq object
+
+```{r}
+RA_Family.tab <- data.table::data.table(psmelt(RA_Family.glom))
+```
+
+* Calculate the median abundance and classify the taxa as "Others" when median abundance of a taxa is less than 1% (i.e. 0.01)
+
+```{r}
+# convert Family to a character vector from a factor because R
+RA_Family.tab$Family <- as.character(RA_Family.tab$Family)
+# group dataframe by Family, calculate median rel. abundance
+RA_Family.tab[, median := median(Abundance, na.rm = TRUE), 
+    by = "Family"]
+# Change name to Others of Family less than 1%
+RA_Family.tab[(median <= 0.01), Family := "Others"]
+RA_Family.tab[(median <= 0.01), Class := "Others"]
+RA_Family.tab[(median <= 0.01), Phylum := "Others"]
+```
+
+* Convert and re-oder the taxonomy levels
+
+```{r}
+str(RA_Family.tab)
+RA_Family.tab$Phylum <- as.factor(RA_Family.tab$Phylum)
+RA_Family.tab$Class <- as.factor(RA_Family.tab$Class)
+RA_Family.tab$Family <- as.factor(RA_Family.tab$Family)
+
+levels(RA_Family.tab$Phylum)
+levels(RA_Family.tab$Class)
+levels(RA_Family.tab$Family)
+```
+
+### Barplot
+
+* All samples
+
+```{r RA_barplot_family1, fig.height=7.5, fig.width=15, dev="svg", fig.path="Figures/04_RA/"}
+RA_Family.samples.plot <- ggplot(RA_Family.tab,
+       aes (
+         x = SampleCode,
+         y = Abundance,
+         fill = Family
+       )) +
+  geom_bar(
+           stat = "identity",
+    position = "stack",
+    width = 0.75,
+    color = "black"
+  ) + 
+  upstartr::scale_y_percent() +
+  scale_fill_manual(values = custom_palette) +
+  labs(title = "Relative abundance",
+    x = "Samples",
+    y = "Relative abundance",
+    fill = "Families:") +
+  theme_classic() +
+  theme(axis.title.x = element_text(size = 15,family="serif",vjust = -1),
+        axis.title.y = element_text(size = 15, family="serif"),
+        legend.title = element_text(size = 15, family="serif"),
+        plot.title = element_text(size = 17.5, hjust=0.5,family="serif"),
+        axis.text.x = element_blank(),
+        axis.text.y = element_text(colour = "black", size=12.5,family="serif"),
+        legend.text = element_text(colour = "black", size=12.5,family="serif"),
+        strip.text.x = element_text(size = 9, colour = "black",family="serif"),
+        legend.position="bottom") +
+  guides(fill = guide_legend(nrow = 4)) +
+  facet_grid(. ~ Treatment, scales = "free", space = "fixed", switch = "y", labeller = label_wrap_gen(1))
+RA_Family.samples.plot
+```
+
+* Mean value per group
+
+```{r RA_barplot_family2, fig.height=7.5, fig.width=15, dev="svg", fig.path="Figures/04_RA/"}
+RA_Family.mean.plot1 <- ggplot(RA_Family.tab,
+       aes (
+         x = paste(Treatment, sep = "\n"),
+         y = Abundance,
+         fill = Family
+       )) +
+  stat_summary(
+    fun.data = data_summary,
+    geom = "bar",
+    position = "stack",
+    width = 0.75,
+    color = "black"
+  ) + 
+  upstartr::scale_y_percent() +
+  scale_fill_manual(values = custom_palette) +
+  labs(title = "Relative abundance",
+    x = "Field variable",
+    y = "Average relative abundance",
+    fill = "Families:") +
+  theme_classic() +
+  theme(axis.title.x = element_text(size = 15,family="serif",vjust = -1),
+        axis.title.y = element_text(size = 15, family="serif"),
+        legend.title = element_text(size = 15, family="serif"),
+        plot.title = element_text(size = 17.5, hjust=0.5,family="serif"),
+        axis.text.x = element_blank(),
+        axis.text.y = element_text(colour = "black", size=12.5,family="serif"),
+        legend.text = element_text(colour = "black", size=12.5,family="serif"),
+        strip.text.x = element_text(size = 10, colour = "black",family="serif"),
+        legend.position="bottom") +
+  guides(fill = guide_legend(nrow = 4)) +
+  facet_grid(. ~ Treatment, scales = "free", switch = "y", labeller = label_wrap_gen(1))
+RA_Family.mean.plot1
+```
+
+* Phylum + Family barplot
+
+```{r RA_barplot_family3, fig.height=10, fig.width=15, dev="svg", fig.path="Figures/04_RA/"}
+#Re-order class levels according to the Phylum levels
+RA_Family.tab$Family <- factor(RA_Family.tab$Family, levels=unique(RA_Family.tab$Family[order(RA_Family.tab$Phylum)]), ordered=TRUE)
+
+RA_Family.mean.plot2 <- ggplot(RA_Family.tab[RA_Family.tab$Phylum != "Others",],
+       aes (
+         x = paste(Treatment, sep = "\n"),
+         y = Abundance,
+         fill = Family
+       )) +
+  stat_summary(
+    fun.data = data_summary,
+    geom = "bar",
+    position = "stack",
+    width = 0.75,
+    color = "black"
+  ) + 
+  upstartr::scale_y_percent() +
+  scale_fill_manual(values = custom_palette) +
+  labs(title = "Relative abundance: Phylum + Family",
+    x = "Sample",
+    y = "Average relative abundance",
+    fill = "Families:") +
+  theme_classic() +
+  theme(axis.title.x = element_text(size = 15,family="serif",vjust = -1),
+        axis.title.y = element_text(size = 15, family="serif"),
+        legend.title = element_text(size = 15, family="serif"),
+        plot.title = element_text(size = 17.5, hjust=0.5,family="serif"),
+        axis.text.x = element_blank(),
+        axis.text.y = element_text(colour = "black", size=10,family="serif"),
+        legend.text = element_text(colour = "black", size=12.5,family="serif"),
+        strip.text.x = element_text(size = 10, colour = "black",family="serif"),
+        strip.text.y = element_text(size = 10, colour = "black",family="serif", angle = 0),
+        legend.position="bottom") +
+  guides(fill = guide_legend(nrow = 4)) +
+  facet_grid(Phylum ~ Treatment, scales = "free", labeller = label_wrap_gen(1))
+RA_Family.mean.plot2
+#ggsave("Figures/04_RA/barplot_mean_family_phyllum_1perc.png")
+```
+
+### Heatmap
+
+* Phylum + Family heatmap
+
+```{r RA_heatmap_family, fig.height=7.5, fig.width=15, dev="svg", fig.path="Figures/04_RA/"}
+RA_Family.heatmap <- ggplot(data = RA_Family.tab[RA_Family.tab$Phylum != "Others",], aes(x = SampleCode, y = Family, fill = Abundance*100)) +
+  geom_tile() +
+  scale_fill_gradient2(low="white", high="blue", na.value = "grey", trans = scales::log_trans(10)) +
+  theme_linedraw() +
+  labs(
+    title = "Relative abundance: phylum and family",
+    x = "Samples",
+    y = "Family",
+    fill = "Relative abundance (%)
+Transformation: log(10)"
+  ) +
+  theme (
+    plot.title = element_text(colour = "black", size = 15, family = "serif"),
+    axis.title.x = element_text(colour = "black", size = 15, family = "serif", vjust = -1),
+    axis.title.y = element_text(colour = "black",size = 15,family = "serif"),
+    legend.title = element_text(colour = "black",size = 15,family = "serif"),
+    axis.text.x = element_blank(),
+    axis.text.y = element_text(colour = "black",size = 12.5,family = "serif"),
+    legend.text = element_text(colour = "black",size = 12.5,family = "serif"),
+    strip.text.x = element_text(size = 12.5, colour = "white", family = "serif"),
+    strip.text.y = element_text(size = 12.5,colour = "white",angle = 0,family = "serif"),
+    legend.position = "bottom",
+    legend.key.width = unit(2.5, "cm"),   # Set the width of the legend key
+    legend.key.height = unit(1, "cm")  # Set the height of the legend key
+    )
+
+RA_Family.heatmap + 
+  labs(x = "Treatment") +
+  theme(strip.text.x = element_text(size = 10, colour = "white", family = "serif")) +
+  facet_grid(
+    Phylum ~ Treatment,
+    switch = "x",
+    scales = "free",
+    space = "free"
+  )
+```
+
+> NA values appear in grey.
+
+
+## Genus - 30 most dominant
+
+
+### Prepare data
+
+* Give a new name to the phyloseq object
+
+```{r}
+physeq_RA_Genus <- physeq_r
+```
+
+* Rename NAs: Identifies phyloseq tax_table values as unknown or uninformative and replaces them with the first informative value from a higher taxonomic rank
+
+```{r message=FALSE, warning=FALSE}
+tax_table(physeq_RA_Genus) <- microViz::tax_fix(physeq_RA_Genus, unknowns = NA, suffix_rank = "current", anon_unique = FALSE)
+```
+
+* Merge species that have the same taxonomy at a certain taxonomic rank and convert the read data into compositional data
+
+```{r}
+RA_Genus.glom <- tax_glom(physeq_RA_Genus, taxrank = 'Genus')
+RA_Genus.glom <- microbiome::transform(x = RA_Genus.glom, transform = "compositional", target = "OTU")
+```
+
+* Get the 30 most abundant genera
+
+```{r}
+TopOTUs <- names(sort(taxa_sums(RA_Genus.glom), TRUE)[1:30])
+RA_Genus.glom.30  <- prune_taxa(TopOTUs, RA_Genus.glom)
+```
+
+* Create dataframe from phyloseq object
+
+```{r}
+RA_Genus.tab <- data.table::data.table(psmelt(RA_Genus.glom.30))
+```
+
+* Convert and re-oder the taxonomy levels
+
+```{r}
+RA_Genus.tab$Phylum <- as.factor(RA_Genus.tab$Phylum)
+RA_Genus.tab$Class <- as.factor(RA_Genus.tab$Class)
+RA_Genus.tab$Family <- as.factor(RA_Genus.tab$Family)
+RA_Genus.tab$Genus <- as.factor(RA_Genus.tab$Genus)
+
+levels(RA_Genus.tab$Phylum)
+levels(RA_Genus.tab$Class)
+levels(RA_Genus.tab$Family)
+levels(RA_Genus.tab$Genus)
+```
+
+### Heatmap
+
+* Family + Genus heatmap
+
+```{r RA_heatmap_genus, fig.height=10, fig.width=15, dev="svg", fig.path="Figures/04_RA/"}
+RA_Genus.heatmap <- ggplot(data = RA_Genus.tab, aes(x = SampleCode, y = Genus, fill = Abundance*100)) +
+  geom_tile() +
+  scale_fill_gradient2(low="white", high="blue", na.value = "grey", trans = scales::log_trans(10)) +
+  theme_linedraw() +
+  labs(
+    title = "Relative abundance: family and genus - most abundant",
+    x = "Samples",
+    y = "Genus",
+    fill = "Relative abundance (%)
+Transformation: log(10)"
+  ) +
+  theme (
+    plot.title = element_text(colour = "black", size = 15, family = "serif"),
+    axis.title.x = element_text(colour = "black", size = 15, family = "serif", vjust = -1),
+    axis.title.y = element_text(colour = "black",size = 15,family = "serif"),
+    legend.title = element_text(colour = "black",size = 15,family = "serif"),
+    axis.text.x = element_blank(),
+    axis.text.y = element_text(colour = "black",size = 12.5,family = "serif"),
+    legend.text = element_text(colour = "black",size = 12.5,family = "serif"),
+    strip.text.x = element_text(size = 12.5, colour = "white", family = "serif"),
+    strip.text.y = element_text(size = 12.5,colour = "white",angle = 0,family = "serif"),
+    legend.position = "bottom",
+    legend.key.width = unit(2.5, "cm"),   # Set the width of the legend key
+    legend.key.height = unit(1, "cm")  # Set the height of the legend key
+    )
+
+RA_Genus.heatmap + 
+  labs(x = "Treatment") +
+  theme(strip.text.x = element_text(size = 10, colour = "white", family = "serif")) +
+  facet_grid(
+    Family ~ Treatment,
+    switch = "x",
+    scales = "free",
+    space = "free"
+  )
+#ggsave("Figures/04_RA/Family_Genus_heatmap.png", dpi = 500, width = 10, height = 11, units = "in")
+```
+
+> NA values appear in grey.
+
+# Step 6: differential heat tree (Wilcoxon) using relative abundance
+
+Check out the metacoder package: https://grunwaldlab.github.io/metacoder_documentation/index.html
+
+See FAQ regarding "which color is which treatment?" https://grunwaldlab.github.io/metacoder_documentation/faq.html
+
+## Filter the data to make the trees readable
+
+```{r}
+#Convert in percentage
+physeq_prop <- microbiome::transform(x = physeq_r, transform = "compositional", target = "OTU")
+
+#Remove taxa which abundance is lower than 0.1% (i.e. 0.001)
+threshold <- 0.001
+OTU_to_keep <- apply(as(otu_table(physeq_prop), "matrix"),1, max) > threshold
+physeq_prop_filt <- prune_taxa(OTU_to_keep, physeq_prop)
+```
+
+* Check the filtering
+
+```{r}
+physeq_r
+physeq_prop
+physeq_prop_filt
+cat("There are", nrow(tax_table(physeq_prop_filt)), "taxa left after filtering")
+```
+
+## Treatment
+
+```{r HeatTree_ManMet, fig.height=10, fig.width=10, message=FALSE, warning=FALSE, dev="svg", fig.path="Figures/05_trees/"}
+### Data preparation
+carbom.metacoder <- physeq_prop_filt
+obj <- parse_phyloseq(carbom.metacoder)
+print(obj)
+
+#sum the abundance per-taxon
+obj$data$tax_abund <- calc_taxon_abund(obj, "otu_table",
+                                       cols = meta(carbom.metacoder)$SampleCode)
+
+#calculate the number of samples that have reads for each taxon:
+obj$data$tax_occ <- calc_n_samples(obj, "tax_abund", 
+                                   groups = meta(carbom.metacoder)$Treatment, 
+                                   cols = meta(carbom.metacoder)$SampleCode)
+
+obj$data$diff_table <- compare_groups(obj, data = "tax_abund",
+                                      cols = meta(carbom.metacoder)$SampleCode, # What columns of sample data to use
+                                      groups =  meta(carbom.metacoder)$Treatment) # What category each sample is assigned to
+print(obj$data$diff_table)
+
+# P value correction for multiple comparisons
+obj <- mutate_obs(obj, "diff_table", wilcox_p_value = p.adjust(wilcox_p_value, method = "fdr"))
+
+# The most useful statistic for plotting is the log of ratio of median abundances in the two groups, since it is centered on 0 and is symmetric (e.g., a value of -4 is the same magnitude as 4). Lets set any differences that are not significant to 0 so all differences shown on the plot are significant.
+obj$data$diff_table$log2_median_ratio[obj$data$diff_table$wilcox_p_value > 0.05] <- 0
+print(obj$data$diff_table)
+
+### Plotting Wilcoxon heat tree
+set.seed(2024)
+obj %>%
+  heat_tree(
+    node_label = taxon_names,
+    node_size = n_obs,
+    # number of OTUs
+    node_color = log2_median_ratio,
+    # difference between groups
+    node_color_interval = c(-3, 3),
+    edge_color_interval = c(-3, 3),
+    # symmetric interval
+    node_color_range = diverging_palette(),
+    # diverging colors
+    node_size_axis_label = "Number of OTUs",
+    node_color_axis_label = "Log 2 ratio of median proportions",
+    layout = "da",
+    initial_layout = "re",
+    # good layout for large trees
+    node_label_size_range = c(0.022, 0.05), # Increase the size of the text
+    edge_label_size = 0.15,
+    repel_labels = T,
+    repel_force = 1.5,
+    repel_iter = 5000
+  )
+#ggsave("Figures/04_RA/Tree_map.png", dpi = 500, width = 6, height = 4, units = "in")
+```
+
+> Treatment 1 will be colored green when the values of log2 ratio are positive while the treatment 2 will be colored brown when the values of log2 ratio are negative. Whenever a taxon is colored in green, it means its abundance is significantly higher in treatment 1 compared to treatment 2. The same is true, when a taxon is colored in brown, its abundance is higher in treatment 2. In carbom.metacoder.wilcox$data$diff_table, treatment 1 corresponds to organic. Therefore, Non_Treated = GREEN and Treated = BROWN

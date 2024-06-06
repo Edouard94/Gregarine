@@ -1,0 +1,1044 @@
+---
+title: "Analysis of Acheta domesticus density experiment (Sept 23)"
+author: "Edouard Bessette"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: yes
+    toc_float: yes
+  word_document:
+    toc: yes
+---
+
+```{r setup, include=FALSE}
+library(formatR)
+library(knitr)
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, tidy = TRUE, tidy.opts=list(width.cutoff=60),  fig.width = 6, fig.asp = 0.8, out.width = "80%")
+```
+
+# Load the necessary libraries
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+library(readxl)
+library(dplyr)
+library(ggplot2)
+library(viridis)
+library(survminer)
+library(survival)
+library(lmtest)
+library(lme4)
+library(RVAideMemoire)
+library(car)
+library(emmeans)
+library(multcomp)
+library(Hmisc)
+library(glmmTMB)
+library(extrafont)
+loadfonts(device = "win")
+viridis_colors <- viridis_pal()(3)
+setwd("C:/Users/eb826/OneDrive - University of Exeter/PhD_EdouardMicrosporidia/Thesis/Chapter4_Leidyana gryllorum/Density experiment")
+```
+
+# Gametocysts analysis
+
+## Import data
+
+```{r }
+gametocysts_data <- read_excel("Gametocysts_Feces_data.xlsx")
+colnames(gametocysts_data)
+```
+
+## Convert factors to appropriate levels
+
+```{r }
+gametocysts_data[c("Treatment", "Infection", "Density", "R", "Dpi", "Box_Id", "Cricket_Age")] <- lapply(gametocysts_data[c("Treatment", "Infection", "Density", "R", "Dpi", "Box_Id", "Cricket_Age")], factor)
+```
+
+## Reorganise levels of Treatment variable and convert variables to factors
+
+```{r }
+gametocysts_data$Treatment <- factor(gametocysts_data$Treatment,levels = c("N_10","Y_10","N_30","Y_30","N_70","Y_70"))
+```
+
+## Data summary
+
+```{r }
+str(gametocysts_data)
+summary(gametocysts_data)
+
+# Calculate summary statistics for each treatment group
+summary_stats <- aggregate(Gametocysts ~ Treatment, data = gametocysts_data, 
+                           FUN = function(x) c(mean = mean(x), 
+                                               median = median(x), 
+                                               sd = sd(x), 
+                                               min = min(x), 
+                                               max = max(x)))
+print(summary_stats)
+```
+
+## Create boxplots for each treatment group
+
+```{r}
+Gametocysts_boxplot <- ggplot(gametocysts_data, aes(x = Treatment, y = Gametocysts, color = Treatment)) +
+  geom_boxplot() +
+  geom_point() +
+  scale_color_viridis_d(labels = c("N_10","Y_10","N_30","Y_30","N_70","Y_70")) +
+  theme_bw(base_family = "Times New Roman") +
+  theme(
+    axis.text = element_text(size = 12), 
+    axis.title = element_text(size = 12, vjust = 0.5),
+    legend.text = element_text(size = 10),
+    legend.title = element_text(size = 10),
+    legend.direction = "vertical",
+    plot.title = element_text(size = 12, face = "bold", hjust = 0.5)) +
+  labs(title = "Gametocysts per Treatment",
+       color = "Infection_Density")
+Gametocysts_boxplot
+#ggsave("Gametocysts_boxplot.png", Gametocysts_boxplot, dpi = 500, width = 6, height = 4, units = "in")
+```
+
+## Create gametocyst curves over time
+
+```{r}
+# Calculate mean Gametocysts per dpi obtained by treatment
+mean_gametocysts <- aggregate(Gametocysts ~ Dpi + Treatment, data = gametocysts_data, FUN = mean)
+
+# Plot with mean Gametocysts per dpi and curves for each treatment
+Gametocyst_curves_dpi <- ggplot(mean_gametocysts, aes(x = Dpi, y = Gametocysts, color = Treatment, group = Treatment)) +
+  geom_line(linewidth = 1) +
+  geom_point(size = 2, shape = 15) +
+  scale_color_manual(values = c("#c4c4ff","#ffc4c4","#0000ff","#ff4e4e","#000027","#760000")) +
+  theme_bw(base_family = "Times New Roman") +
+  theme(
+    axis.text = element_text(size = 12), 
+    axis.title = element_text(size = 12, vjust = 0.5),
+    legend.text = element_text(size = 10),
+    legend.title = element_text(size = 10),
+    legend.direction = "vertical",
+    legend.position = "right",
+    plot.title = element_text(size = 12, face = "bold", hjust = 0.5),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank()
+    ) +
+  labs(title = "Mean Gametocysts per Dpi and Treatment",
+       x = "Dpi",
+       y = "Mean Gametocysts",
+       color = "Infection_Density")
+Gametocyst_curves_dpi
+
+# Calculate mean Gametocysts per cricket age obtained by treatment
+mean_gametocysts_age <- aggregate(Gametocysts ~ Cricket_Age + Treatment, data = gametocysts_data, FUN = mean)
+
+# Define the new rows to add
+new_rows <- data.frame(
+  Cricket_Age = factor(rep(15, 6)), # Assign Cricket Age as 15 and convert to factor
+  Treatment = c("N_10", "Y_10", "N_30", "Y_30", "N_70", "Y_70"), # Adjust treatment names accordingly
+  Gametocysts = rep(0, 6) # Assign Gametocysts as 0
+)
+
+# Combine factor levels from the existing and new rows
+updated_mean_gametocysts <- rbind(mean_gametocysts_age, new_rows)
+# Reorder the levels of Cricket_Age
+updated_mean_gametocysts$Cricket_Age <- factor(updated_mean_gametocysts$Cricket_Age, levels = c("15", "19", "22", "26", "29", "33", "36"))
+
+# Add text for infection rounds
+y <- max(mean_gametocysts_age$Gametocysts) * 0.95
+textaes <- data.frame(y = c(y, y, y),
+                      x = c(1, 3, 5),
+                      lab = c("Infection 1", "Infection 2", "Infection 3"))
+
+# Plot with mean Gametocysts per cricket age and curves for each treatment
+Gametocyst_curves_age <- ggplot(updated_mean_gametocysts, aes(x = Cricket_Age, y = Gametocysts, color = Treatment, group = Treatment)) +
+  geom_line(linewidth = 0.5) +
+  geom_point(size = 2, shape = 15) +
+  scale_color_manual(values = c("#c4c4ff","#ffc4c4","#0000ff","#ff4e4e","#000027","#760000")) +
+  theme_bw(base_family = "Times New Roman") +
+  theme(
+    axis.text = element_text(size = 12), 
+    axis.title = element_text(size = 12, vjust = 0.5),
+    legend.text = element_text(size = 10),
+    legend.title = element_text(size = 10),
+    legend.direction = "horizontal",
+    legend.position = "top",
+    plot.title = element_text(size = 12, face = "bold", hjust = 0.5),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank()
+    ) +
+  labs(title = "Mean Gametocysts per Cricket Age and Treatment",
+       x = "Cricket Age (days)",
+       y = "Mean Gametocysts",
+       color = "Infection_Density") +
+  geom_segment(aes(x = 1, y = 0, yend = max(mean_gametocysts_age$Gametocysts) * 0.9), 
+               colour = "red", linetype = "dashed", linewidth = 0.5) + 
+  geom_segment(aes(x = 3, y = 0, yend = max(mean_gametocysts_age$Gametocysts) * 0.9), 
+               colour = "red", linetype = "dashed", linewidth = 0.5) +
+  geom_segment(aes(x = 5, y = 0, yend = max(mean_gametocysts_age$Gametocysts) * 0.9), 
+               colour = "red", linetype = "dashed", linewidth = 0.5) + # Add infection rounds at age 15, 22 and 29 
+   geom_text(mapping = aes(y = y, x = x, label = lab), colour = "red", data = textaes, inherit.aes = FALSE)
+
+Gametocyst_curves_age
+```
+
+## Correlation between gametocysts and other parameters
+
+### Plot
+
+```{r }
+correlation_plot1 <- ggplot(gametocysts_data, aes(x = Feces, y = Gametocysts)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(title = "Correlation between gametocysts and faeces",
+       x = "Faeces per box (mg)",
+       y = "Gametocysts count per box") +
+  theme_bw(base_family = "Times New Roman") + 
+ theme(plot.title = element_text(face = "bold", size = 12, hjust = 0.5),
+        axis.title.y = element_text(size = 12), 
+        axis.title.x = element_text(size = 12),  
+        axis.text.x = element_text(angle = 50, vjust = 1, hjust = 1, size = 12),
+        axis.text.y = element_text(size = 12),  
+        legend.position = "none")
+correlation_plot1
+
+correlation_plot2 <- ggplot(gametocysts_data, aes(x = Feces, y = Gametocysts)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(title = "Correlation between gametocysts and faeces",
+       x = "Faeces per box (mg)",
+       y = "Gametocysts count per box") +
+  theme_bw(base_family = "Times New Roman") + 
+ theme(plot.title = element_text(face = "bold", size = 12, hjust = 0.5),
+        axis.title.y = element_text(size = 12), 
+        axis.title.x = element_text(size = 12),  
+        axis.text.x = element_text(angle = 50, vjust = 1, hjust = 1, size = 12),
+        axis.text.y = element_text(size = 12),  
+        legend.position = "none") +
+  facet_wrap(~ Dpi, scales = "free")
+correlation_plot2
+```
+
+### Compute correlation coefficient
+
+```{r }
+correlation <- cor(gametocysts_data$Feces, gametocysts_data$Gametocysts)
+# Conduct Pearson's correlation test
+cor_test <- cor.test(gametocysts_data$Feces, gametocysts_data$Gametocysts)
+# Print correlation coefficient
+print(paste("Correlation coefficient:", correlation))
+# Print correlation test results
+print(cor_test)
+
+# Compute correlation for each Dpi level
+correlation_by_dpi <- gametocysts_data %>%
+  group_by(Dpi) %>%
+  summarise(correlation = cor(Gametocysts, Feces))
+print(correlation_by_dpi)
+
+# Correlation tests for each Dpi level
+correlation_test_by_dpi <- gametocysts_data %>%
+  group_by(Dpi) %>%
+  group_map(~ cor.test(.x$Gametocysts, .x$Feces))
+
+library(purrr)
+library(broom)
+correlation_test_summary <- map(correlation_test_by_dpi, tidy)
+correlation_test_summary <- bind_rows(correlation_test_summary)
+print(correlation_test_summary)
+```
+
+## General model
+
+```{r }
+# Look at the variable distrib
+hist(gametocysts_data$Gametocysts)
+
+# ziformula = ~Treatment Assuming the covariate Treatment is included in the zero-inflation part
+ 
+model_gameto_age_nb <- glmmTMB(Gametocysts ~  Infection * Density + Cricket_Age + Feces + (1|Box_Id), data = gametocysts_data, family = nbinom2(link = "log"))
+
+model_gameto_dpi_nb <- glmmTMB(Gametocysts ~  Infection * Density + Dpi + Feces + (1|Box_Id), data = gametocysts_data, family = nbinom2(link = "log"))
+
+anova(model_gameto_age_nb, model_gameto_dpi_nb)
+# model_gameto_age_nb has a better fit
+```
+
+### Check model
+
+```{r }
+library(MuMIn)
+options(na.action = "na.fail") # prevent fitting models to different datasets, needed for dredge()
+dredge(model_gameto_age_nb)
+# The model with all the interactions has the better fit
+
+# Selcted final for analysis
+model_gameto_age_final <- glmmTMB(Gametocysts ~  Infection * Density + Cricket_Age + Feces + (1|Box_Id), data = gametocysts_data, family = nbinom2(link = "log"))
+library(performance)
+check_overdispersion(model_gameto_age_final)
+# Overdispersion test: dispersion ratio = 0.469 (p = 0.152)
+
+summary(model_gameto_age_final)
+Anova(model_gameto_age_final, type="II")
+
+pairwise_comp_i <- emmeans(model_gameto_age_final, pairwise ~ Infection, type="response")
+pairwise_comp_i
+cld(pairwise_comp_i,adjust="fdr",Letters=letters)
+
+pairwise_comp_d <- emmeans(model_gameto_age_final, pairwise ~ Density, type="response")
+pairwise_comp_d
+cld(pairwise_comp_d,adjust="fdr",Letters=letters)
+
+pairwise_comp_age <- emmeans(model_gameto_age_final, pairwise ~ Cricket_Age, type="response")
+pairwise_comp_age
+cld(pairwise_comp_age,adjust="fdr", Letters=letters)
+
+plot_age_emmean <- plot(pairwise_comp_age, horizontal=FALSE, comparisons=TRUE) +
+        theme_bw(base_family = "Times New Roman") + 
+        theme(plot.title = element_text(face = "bold", size = 12, hjust = 0.5),
+        axis.title.y = element_text(size = 12), 
+        axis.title.x = element_text(size = 12),  
+        axis.text.x = element_text(angle = 50, vjust = 1, hjust = 1, size = 12)) +
+  labs(title = "Emmeans of gametocysts",
+       x = "Cricket age (days)",
+       y = "Gametocyst emmeans")
+plot_age_emmean
+```
+
+# Survival analysis
+
+## Import data
+
+```{r }
+survival_data <- read_excel("SurvivalTable.xlsx")
+colnames(survival_data)
+```
+## Convert factors to appropriate levels
+
+```{r }
+survival_data[c("Treatment", "Infection", "Density", "R")] <- lapply(survival_data[c("Treatment", "Infection", "Density", "R")], factor)
+```
+
+## Reorganise levels of Treatment variable and convert variables to factors
+
+```{r }
+survival_data$Treatment <- factor(survival_data$Treatment,levels = c("N_10","Y_10","N_30","Y_30","N_70","Y_70"))
+```
+
+## Data summary
+
+```{r }
+str(survival_data)
+summary(survival_data)
+```
+
+## Check mortality (sanity check)
+
+```{r }
+# Calculate total number of crickets and number of deaths by treatment
+total_Adomesticus <- survival_data %>% 
+  group_by(Density) %>% 
+  summarise(total = n())
+
+mortality_Adomesticus <- survival_data %>% 
+  group_by(Density, Censor) %>% 
+  summarise(mortality = sum(Censor == 1)) %>%
+  filter(Censor == 1) # Keep only dead crickets
+
+# Merge total and mortality data frames
+Adomesticus_check <- merge(total_Adomesticus, mortality_Adomesticus, by = "Density", all = TRUE)
+
+# Calculate percentage of mortality
+Adomesticus_check$percent <- (Adomesticus_check$mortality / Adomesticus_check$total) * 100
+print(Adomesticus_check)
+
+# Create a data frame with the required columns
+contingency_data <- data.frame(Density = Adomesticus_check$Density,
+                               Alive = Adomesticus_check$total - Adomesticus_check$mortality,
+                               Dead = Adomesticus_check$mortality)
+
+# Set Density as row names
+row.names(contingency_data) <- contingency_data$Density
+contingency_data$Density <- NULL
+
+# Reorder rows according to desired order
+desired_order <- c("10","30","70")
+contingency_data <- contingency_data[match(desired_order, rownames(contingency_data)), ]
+print(contingency_data)
+
+# Perform chi-square test
+chi_square_test <- chisq.test(contingency_data)
+print(chi_square_test)
+
+# Perform pairwise comparisons using fdr correction
+contingency_matrix <- as.matrix(contingency_data)
+pairwise_chisq <- pairwise.prop.test(x = contingency_matrix, p.adjust.method = "fdr")
+print(pairwise_chisq)
+```
+
+## Surv curves by treatments
+
+```{r }
+# survival_data$Death_time <- survival_data$Death_time + 15
+# Calculate the labels for the new Death_time
+#labs_new <- paste("New Death Time:", survival_data$Death_time)
+
+surv <- survfit(Surv(Death_time, Censor) ~ Density, data = survival_data)
+surv_plot <- ggsurvplot(
+  fit = surv,
+  ylim = c(0.7, 1),
+  surv.scale = "percent",
+  title = "Cricket survival per density treatment",
+  xlab ="Cricket age (days)",
+  legend.title = "Density",
+  legend.labs = c("10","30","70"),
+  palette = viridis_colors,  # Use viridis color palette
+  #palette = c("#c4c4ff","#ffc4c4","#0000ff","#ff4e4e","#000027","#760000"),
+  #linetype = c(1, 2, 3),
+  ggtheme = theme_bw(base_family = "Times New Roman") +
+    theme(
+      axis.text = element_text(size = 12), 
+      axis.title = element_text(size = 12, vjust = 0.5),
+      legend.text = element_text(size = 10),
+      legend.title = element_text(size = 10, face = "bold"),
+      legend.direction = "horizontal",
+      plot.title = element_text(size = 12, face = "bold", hjust = 0.5)))
+surv_plot
+#ggsave("surv_plot.png", surv_plot$plot, dpi = 300, width = 6, height = 4, units = "in")
+
+#annotate(geom = "text", x = survival_data$Death_time, label = labs_new, size=4)
+
+# Get p-values with coordinates
+#pvalue_letters <- surv_pvalue(surv, method = "survdiff", get_coord = TRUE)
+```
+
+## LT50 determined with median values
+
+```{r }
+summary(surv)$table
+```
+
+## Determine if we have a constant risk or not
+
+```{r }
+plotsurvivors(survival_data$Death_time, survival_data$Censor)
+# The instantaneous risk is considered constant if the points on the survival curve are roughly aligned on a straight line.
+## Here the instant risk is constant, then we opt for a survival regression model
+```
+
+## Surv reg model
+
+### Find the best distribution for our survival data
+```{r}
+# Create vector of parametric distributions to test
+distList <- c(distList <- c("extreme", "logistic", "gaussian", "weibull", "exponential", "rayleigh", "lognormal", "loglogistic", "t"))
+
+# Function fits each distribution and extracts AIC, BIC, log-likelihood values
+## The distribution is estimated on the event data without any covariate (~ 1)
+fit_dist <- function(dist) {
+  tmp <- survreg(Surv(Death_time, Censor) ~ 1, data = survival_data, dist = dist)
+  c(AIC(tmp), BIC(tmp), as.numeric(logLik(tmp)))
+}
+
+# Apply above function to each distribution in the distList
+results_list <- lapply(distList, fit_dist)
+
+# Convert the above list of results to a data frame
+results_df <- data.frame(t(matrix(unlist(results_list), nrow = 3)))
+colnames(results_df) <- c("aic", "bic", "logLik")
+rownames(results_df) <- distList
+
+# Find the distribution with the lowest AIC, BIC, and logLik values
+bestFitAIC <- rownames(results_df)[which.min(results_df$aic)]
+bestFitBIC <- rownames(results_df)[which.min(results_df$bic)]
+bestFitLogLik <- rownames(results_df)[which.max(results_df$logLik)]
+
+# Print the results data frame and best fitting distributions
+results_df
+cat("\nBest fitting distribution using AIC:", bestFitAIC, "\n")
+cat("\nBest fitting distribution using BIC:", bestFitBIC, "\n")
+cat("\nBest fitting distribution using Log-Likelihood:", bestFitLogLik, "\n")
+## The best distribution here is lognormal 
+
+# We can check graphically how the distribution is fitting to the survival data
+require(flexsurv)
+s <- with(survival_data,Surv(Death_time,Censor))
+sLnorm  <- flexsurvreg(s ~ 1,dist="lnorm",data=survival_data)
+sExp  <- flexsurvreg(s ~ 1,dist="exponential",data=survival_data) 
+plot(sLnorm, ylim = c(0.7, 1)) +
+  lines(sExp, col = "blue")
+```
+
+```{r }
+model_surv <- survreg(Surv(Death_time, Censor) ~ Density, data = survival_data, dist="lognormal") # distribution determined earlier
+RVAideMemoire::plotresid(model_surv)
+
+summary(model_surv)
+Anova(model_surv, type="II")
+```
+
+## Pairwise differences between different treatments
+
+```{r }
+pairwise_comp_sd <- emmeans(model_surv, pairwise ~ Density, type="response")
+pairwise_comp_sd
+cld(pairwise_comp_sd,adjust="fdr",Letters=letters)
+```
+
+# Emergence Analysis
+
+## Import data
+
+```{r }
+emergence_data <- read_excel("EmergencelTable.xlsx")
+colnames(emergence_data)
+```
+
+### Convert factors to appropriate levels
+
+```{r }
+emergence_data[c("Treatment","Infection","Density","R","Sex")] <- lapply(emergence_data[c("Treatment","Infection","Density","R","Sex")],factor)
+```
+
+### Reorganise levels of Treatment variable and convert variables to factors
+
+```{r }
+emergence_data$Treatment <- factor(emergence_data$Treatment,levels = c("N_10","Y_10","N_30","Y_30","N_70","Y_70"))
+```
+
+### Data summary
+
+```{r }
+str(emergence_data)
+
+# Filter the data to include only rows where Censor equals 1
+filtered_data <- filter(emergence_data, Censor == 1)
+
+# Group by Treatment, Infection, and Density, and summarize the counts of Sex
+emmergence_summary_table <- filtered_data %>%
+  group_by(Treatment, Infection, Density, R) %>%
+  summarise(Count_of_Sex = n()) %>%
+  arrange(Treatment, Infection, Density, R)
+
+# Print the summarized table
+print(emmergence_summary_table)
+```
+
+## Calculate proportions and perform chi-square tests
+
+```{r echo=TRUE, message=FALSE}
+emergence_table <- emergence_data %>%
+  group_by(Density) %>%
+  summarise(y1 = sum(Censor == 1), #Number of emerged crickets
+            y2 = sum(Censor == 0)   #Number of non-emerged crickets
+  ) %>%
+  mutate(y1_prop = y1 / (y1 + y2), #Proportion of emerged crickets
+         y2_prop = y2 / (y1 + y2))   #Proportion of non-emerged crickets
+
+print(emergence_table)
+
+# Create the contingency table
+contingency_table <- as.matrix(emergence_table[, c("y1", "y2")])
+rownames(contingency_table) <- paste(emergence_table$Density)
+colnames(contingency_table) <- c("Emerged", "Non-emerged")
+
+# Perform chi-square test
+chisq_result <- chisq.test(contingency_table)
+print(chisq_result)
+
+# Perform pairwise comparisons using fdr correction
+pairwise_chisq <- pairwise.prop.test(x = contingency_table, p.adjust.method = "fdr")
+print(pairwise_chisq)
+```
+## LT50 table
+
+```{r }
+surv_emergence <- survfit(Surv(Emergence_time,Censor) ~ Sex,data = emergence_data)
+summary(surv_emergence)$table
+```
+
+## Surv curve emergence
+
+```{r }
+surv_emergence <- survfit(Surv(Emergence_time,Censor) ~ Density,data = emergence_data)
+surv_plot_emergence <- ggsurvplot(
+  fit = surv_emergence,
+  surv.scale = "percent",
+  title = "Cricket emergence across density treatment",
+  ylab = "Cricket emergence",
+  xlab = "Cricket age (days)",
+  legend.title = "Density",
+  legend.labs = c("10","30","70"),
+  palette = viridis_colors,
+  ylim=c(0, 1),
+  break.y.by = 0.2,
+  xlim = c(36,53),
+  break.x.by = 2,
+  fun="event",
+  #surv.median.line = "h",
+  ggtheme = theme_bw(base_family = "Times New Roman") +
+    theme(
+      axis.text = element_text(size = 12), 
+      axis.title = element_text(size = 12, vjust = 0.5),
+      legend.text = element_text(size = 10),
+      legend.title = element_text(size = 10, face = "bold"),
+      plot.title = element_text(size = 12, face = "bold", hjust = 0.5)))
+
+# Add line at 50% emergence
+p1 <- surv_plot_emergence$plot +
+  geom_hline(yintercept = 0.5, linetype = "dashed", color = "gold")
+p1
+#ggsave("emergence_plot.png", p1, dpi = 500, width = 4.5, height = 4, units = "in")
+```
+
+## Surv curve male
+
+```{r }
+# Subset for males
+df_males <- subset(emergence_data, Sex == "Male" | Sex == "NA")
+
+
+surv_male <- survfit(Surv(Emergence_time,Censor) ~ Density,data = df_males)
+surv_plot_male <- ggsurvplot(
+  fit = surv_male,
+  surv.scale = "percent",
+  title = "Cricket male emergence",
+  ylab = "Cricket emergence",
+  palette = viridis_colors,
+  legend = "none",
+  xlim = c(38,53),
+  break.x.by = 5,
+  fun="event",
+  ggtheme = theme_bw(base_family = "Times New Roman") +
+    theme(
+      axis.text = element_text(size = 12), 
+      axis.title = element_text(size = 12, vjust = 0.5),
+      legend.text = element_text(size = 10),
+      legend.title = element_text(size = 10),
+      plot.title = element_text(size = 12, face = "bold", hjust = 0.5)))
+surv_plot_male
+#ggsave("emergence_male_plot.png", surv_plot_male$plot, dpi = 500, width = 2.6, height = 3.5, units = "in")
+```
+
+## Surv curve female
+
+```{r }
+# Subset for females
+df_females <- subset(emergence_data, Sex == "Female" | Sex == "NA")
+
+surv_female <- survfit(Surv(Emergence_time,Censor) ~ Density,data = df_females)
+surv_plot_female <- ggsurvplot(
+  fit = surv_female,
+  surv.scale = "percent",
+  title = "Cricket female emergence",
+  ylab = "Cricket emergence",
+  palette = viridis_colors,
+  legend = "none",
+  xlim = c(36,53),
+  break.x.by = 5,
+  #ylim = c(0,0.4),
+  fun="event",
+  ggtheme = theme_bw(base_family = "Times New Roman") +
+    theme(
+      axis.text = element_text(size = 12), 
+      axis.title = element_text(size = 12, vjust = 0.5),
+      legend.text = element_text(size = 10),
+      legend.title = element_text(size = 10),
+      plot.title = element_text(size = 12, face = "bold", hjust = 0.5)))
+surv_plot_female
+#ggsave("emergence_female_plot.png", surv_plot_female$plot, dpi = 500, width = 2.6, height = 3.5, units = "in")
+```
+
+## Arrange the surv plots together
+
+```{r }
+splots <- list(surv_plot_female, surv_plot_male)
+arrange <- arrange_ggsurvplots(splots, print = TRUE, ncol = 2, nrow = 1)
+arrange
+```
+
+## Generalized linear model – binomial family
+
+```{r }
+# Filter out NA values from the initial data set
+emergence_data_filtered <- emergence_data %>% filter(Sex != "NA")
+
+glm_model <- glm(Emergence_time ~ Density + Sex, data = (emergence_data),family = Gamma(link = "inverse"))
+```
+
+### Check model and Anova
+
+```{r }
+RVAideMemoire::plotresid(glm_model)
+
+summary(glm_model)
+Anova(glm_model,type="II")
+# Only Sex is significant, with Infection and Infection:Density almost significant (0.09)
+```
+
+# Weight Analysis
+
+## Import data
+
+```{r }
+weight_data <- read_excel("Weight_data.xlsx")
+colnames(weight_data)
+```
+
+## Reorganise levels of Treatment variable and convert variables to factors
+
+```{r }
+## Reorganise levels of Treatment variable and convert variables to factors
+weight_data <- weight_data %>%
+  mutate(
+    Treatment = factor(Treatment, levels = c("N_10","Y_10","N_30","Y_30","N_70","Y_70")),
+    Sex = factor(Sex),
+    Infection = factor(Infection),
+    Density = factor(Density),
+    Rep = factor(Rep),
+    Date_emerge = factor(Date_emerge)
+    #Date_emerge = as.Date(Date_emerge, format="%Y/%m/%d")  # Convert Date_emerge to date format
+  )
+str(weight_data)
+```
+
+## Calculate mean and standard deviation for weight variable by treatment
+
+```{r echo=TRUE}
+summary_data_w <- aggregate(Weight ~ Treatment * Sex, weight_data, FUN = function(x) c(mean = mean(x), sd = sd(x)))
+print(summary_data_w)
+```
+
+## Box plot of Weight by Treatment
+
+```{r }
+boxplot_weight <- ggplot(weight_data, aes(x = Density, y = Weight, color = Density),
+  legend.title = "Density",
+  legend.labs = c("10","30","70")) +
+  geom_boxplot(aes(middle = mean(Weight))) +
+  geom_point() +
+  scale_color_viridis_d() +
+  labs(title = "Maturation weight by density treatment",
+       x = "Treatment",
+       y = "Weight (mg)") +
+  theme_bw(base_family = "Times New Roman") + 
+  theme(axis.text = element_text(size = 12), 
+        axis.title = element_text(size = 12),
+        axis.text.x = element_text(angle = 50, vjust = 0.6),
+        legend.title = element_text(size = 10, face = "bold"),
+        plot.title = element_text(size = 12, face = "bold", hjust = 0.5))
+```
+
+## Box Plot of weight Facet by Sex
+
+```{r }
+boxplot_faceted <- boxplot_weight + facet_wrap(~ Sex) +
+  theme(strip.text.x = element_text(size=12)) +
+  labs(colour = "Density")
+boxplot_faceted
+#ggsave("boxplot_weight.png", boxplot_faceted, dpi = 500, width = 7, height = 5, units = "in")
+```
+
+## General model
+
+```{r }
+# Look at variable distrib
+hist(weight_data$Weight) # It seems like a normal distrib
+
+model_weight <- lm(Weight ~ Density + Sex, data = weight_data)
+model_weight_d <- lm(Weight ~ Density + Sex + Date_emerge, data = weight_data)
+anova(model_weight, model_weight_d)
+# A lower Residual Sum of Squares (RSS) indicates a better fit. Model 2 including the emergence date  has a significant lower RSS
+```
+
+### Check residuals and anova
+
+```{r }
+RVAideMemoire::plotresid(model_weight_d)
+
+summary(model_weight_d)
+Anova(model_weight_d, type="II")
+# Density, Sex and Date_emerge are significant terms
+```
+
+### Pairwise comparisons
+
+```{r }
+pairwise_comp_w <- emmeans(model_weight_d, pairwise ~ Density, type="response")
+pairwise_comp_w
+cld(pairwise_comp_w, adjust="fdr", Letters=letters)
+
+pairwise_comp_ws <- emmeans(model_weight_d, pairwise ~ Density|Sex, type="response")
+pairwise_comp_ws
+cld(pairwise_comp_ws, adjust="fdr", Letters=letters)
+
+pairwise_comp_w1 <- emmeans(model_weight_d, pairwise ~ Sex, type="response")
+pairwise_comp_w1
+cld(pairwise_comp_w1, adjust="fdr", Letters=letters)
+
+#pairwise_comp_w2 <- emmeans(model_weight_d, pairwise ~ Sex*Date_emerge, type="response")
+#pairwise_comp_w2
+#cld_w2 <- cld(pairwise_comp_w2, adjust="fdr", Letters=letters)
+
+pairwise_comp_w3 <- emmeans(model_weight_d, pairwise ~ Date_emerge, type="response")
+pairwise_comp_w3
+cld_w3 <- cld(pairwise_comp_w3, adjust="fdr", Letters=letters)
+
+# Plot the emmeans object
+## Remove spaces in .group 
+cld_w3$.group=gsub(" ", "", cld_w3$.group)
+
+# Apply the nudge amount in geom_text
+plot_cld_w3 <- ggplot(cld_w3, aes(x = Date_emerge, y = emmean, label = .group)) +
+  geom_point(shape = 15, size = 3) +
+  geom_errorbar(aes(ymin = lower.CL, ymax =  upper.CL), width = 0.2, size = 0.7) +
+  geom_text(aes(y = upper.CL),  # Set y = upper.CL
+            nudge_y = 15,  # Adjust this value as needed
+            size = 3,
+            color='black') +
+  theme_bw(base_family = "Times New Roman") + 
+  theme(plot.title = element_text(face = "bold", size = 12, hjust = 0.5),
+        axis.title.y = element_text(size = 12), 
+        axis.title.x = element_text(size = 12),  
+        axis.text.x = element_text(angle = 50, vjust = 1, hjust = 1, size = 12),
+        axis.text.y = element_text(size = 12)) +
+  labs(title = "Weight emmeans across cricket age",
+       x = "Cricket age (days) ",
+       y = "Emmeans weight (mg)")
+plot_cld_w3
+#ggsave("Weight_emmean_age.png", plot_cld_w3, dpi = 500, width = 7, height = 5, units = "in")
+```
+
+# Feed and feces analysis
+
+## Import data
+
+```{r }
+feed_feces_data <- read_excel("Feed_Feces_data.xlsx")
+colnames(feed_feces_data)
+summary(feed_feces_data)
+```
+
+## Reorganise levels of Treatment variable and convert variables to factors
+
+```{r }
+feed_feces_data[c("Treatment", "R", "Box_Id", "Infection", "Density", "Dpi", "Cricket_Age")] <- lapply(feed_feces_data[c("Treatment", "R", "Box_Id", "Infection", "Density", "Dpi", "Cricket_Age")], factor)
+feed_feces_data$Treatment <- factor(feed_feces_data$Treatment,
+                                                 levels = c("N_10","Y_10","N_30","Y_30","N_70","Y_70"))
+str(feed_feces_data)
+```
+
+## Calculate mean and standard deviation for each response variable by treatment
+
+```{r }
+summary_data_f <- aggregate(cbind(Feces_ind_day, Feed_ind_day) ~ Treatment + Dpi, feed_feces_data, FUN = function(x) c(mean = mean(x), sd = sd(x)))
+print(summary_data_f)
+```
+
+## Boxplot of Feed Consumed by Treatment
+
+```{r }
+boxplot_feed <- ggplot(feed_feces_data, aes(x = Treatment, y = Feed_ind_day, color = Treatment),
+  legend.title = "Infection_Density",
+  legend.labs = c("N_10","Y_10","N_30","Y_30","N_70","Y_70")) +
+  geom_boxplot() +
+  geom_point() +
+  scale_color_manual(values = c("#c4c4ff","#ffc4c4","#0000ff","#ff4e4e","#000027", "#760000")) +
+  labs(title = "Feed consumed by treatment",
+       x = "Treatment",
+       y = "Feed consumed per individual and per day (mg)") +
+  theme_bw(base_family = "Times New Roman") + 
+  theme(axis.text = element_text(size = 12), 
+        axis.title = element_text(size = 12), 
+        plot.title = element_text(size = 12, face = "bold", hjust = 0.5))
+boxplot_feed
+```
+
+## Boxplot of Feed Consumed by Treatment and Dpi
+
+```{r }
+# Create boxplot with filtered data
+boxplot_feed <- ggplot(feed_feces_data, aes(x = Treatment, y = Feed_ind_day, color = Treatment)) +
+  geom_boxplot(size = 0.8) +
+  scale_color_manual(values = c("#c4c4ff","#ffc4c4","#0000ff","#ff4e4e","#000027", "#760000")) +
+  labs(title = "Feed consumed by treatment and Dpi",
+       x = "Treatment",
+       y = "Feed consumed per individual and per day (mg)",
+       colour = "Infection_Density") +
+  facet_wrap(~Dpi) +
+  theme_bw(base_family = "Times New Roman") + 
+  theme(axis.text = element_text(size = 12), 
+        axis.title = element_text(size = 12),
+        axis.text.x = element_text(angle = 50, vjust = 0.6), 
+        plot.title = element_text(size = 12, face = "bold", hjust = 0.5),
+        legend.position = c(.85, .2))
+boxplot_feed
+```
+
+## Boxplot of Feces Produced by Treatment
+
+```{r }
+boxplot_feces <- ggplot(feed_feces_data, aes(x = Treatment, y = Feces_ind_day, color = Treatment),
+  legend.title = "Infection_Density",
+  legend.labs = c("N_10","Y_10","N_30","Y_30","N_70","Y_70")) +
+  geom_boxplot() +
+  geom_point() +
+  scale_color_manual(values = c("#c4c4ff","#ffc4c4","#0000ff","#ff4e4e","#000027", "#760000")) +
+  labs(title = "Faeces produced by treatment",
+       x = "Treatment",
+       y = "Faeces per individual and per day (mg)") +
+  theme_bw(base_family = "Times New Roman") + 
+  theme(axis.text = element_text(size = 12), 
+        axis.title = element_text(size = 12), 
+        plot.title = element_text(size = 12, face = "bold", hjust = 0.5))
+boxplot_feces
+```
+
+## Boxplot of Feces by Treatment and Dpi
+
+```{r }
+boxplot_feces <- ggplot(feed_feces_data, aes(x = Treatment, y = Feces_ind_day, color = Treatment)) +
+  geom_boxplot(aes(middle = mean(Feces_ind_day)), size = 0.8) +
+  scale_color_manual(values = c("#c4c4ff","#ffc4c4","#0000ff","#ff4e4e","#000027", "#760000")) +
+  labs(title = "Faeces produced by treatment and Dpi",
+       x = "Treatment",
+       y = "Faeces produced per individual and per day (mg)",
+       colour = "Infection_Density") +
+  facet_wrap(~Dpi) +
+  theme_bw(base_family = "Times New Roman") + 
+  theme(axis.text = element_text(size = 12), 
+        axis.title = element_text(size = 12),
+        axis.text.x = element_text(angle = 50, vjust = 0.6), 
+        plot.title = element_text(size = 12, face = "bold", hjust = 0.5),
+        legend.position = c(.85, .2))
+boxplot_feces
+```
+
+## Correlation between consumed feed and Faeces
+
+```{r }
+correlation_plot <- ggplot(feed_feces_data, aes(x = Feces_ind_day, y = Feed_ind_day)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(title = "Correlation between consumed feed and faeces",
+       x = "Faeces per individual and per day (mg)",
+       y = "Feed consumed per individual and per day (mg)") +
+  theme_bw(base_family = "Times New Roman") + 
+ theme(plot.title = element_text(face = "bold", size = 12, hjust = 0.5),
+        axis.title.y = element_text(size = 12), 
+        axis.title.x = element_text(size = 12),  
+        axis.text.x = element_text(angle = 50, vjust = 1, hjust = 1, size = 12),
+        axis.text.y = element_text(size = 12),  
+        legend.position = "none")
+
+correlation_plot
+#ggsave("correlation_plot.png", correlation_plot, dpi = 500, width = 7, height = 5, units = "in")
+```
+
+### Compute correlation coefficient
+
+```{r }
+correlation <- cor(feed_feces_data$Feed_ind_day, feed_feces_data$Feces_ind_day)
+```
+
+### Conduct Pearson's correlation test
+
+```{r }
+cor_test <- cor.test(feed_feces_data$Feed_ind_day, feed_feces_data$Feces_ind_day)
+```
+
+### Print correlation coefficient
+
+```{r }
+print(paste("Correlation coefficient:", correlation))
+```
+
+### Print correlation test results
+
+```{r }
+print(cor_test)
+# There is a strong positive correlation between the amount of feed consumed and the amount of feces produced
+```
+
+## Linear Model (lm) for biomass and Quantitative continuous variables
+
+### Feces model
+
+```{r }
+hist(feed_feces_data$Feces_ind_day)
+
+model_feces <- lmer(Feces_ind_day ~  Density + (1|Box_Id), data = feed_feces_data) #The box id is a random effect (different box measured across different time points)
+model_feces_age <- lmer(Feces_ind_day ~  Density + Cricket_Age + (1|Box_Id), data = feed_feces_data)
+
+
+anova(model_feces, model_feces_age)
+# The model including Cricket age has significant lower AIC and BIC and a higher logLik
+```
+
+#### Check residuals and compare the models and test significance of each term of the model with Anova
+
+```{r }
+RVAideMemoire::plotresid(model_feces_age)
+
+summary(model_feces_age)
+Anova(model_feces_age, type="II")
+```
+
+#### Pairwise comparisons
+
+```{r }
+pairwise_comp_faeces <- emmeans(model_feces_age, pairwise ~ Density, type="response")
+pairwise_comp_faeces
+cld(pairwise_comp_faeces, adjust="fdr", Letters=letters)
+
+pairwise_comp_faeces2 <- emmeans(model_feces_age, pairwise ~ Cricket_Age, type="response")
+pairwise_comp_faeces2
+cld(pairwise_comp_faeces2, adjust="fdr", Letters=letters)
+```
+
+# Create a table that compiles all the above statistical outputs from the Anova objects
+
+* Function to extract results
+
+```{r}
+get.univariate.results <- function(model) {
+  anova_results <- car::Anova(model, type = "II") %>% broom::tidy()
+  
+  if ("lme" %in% class(model) || "lmerMod" %in% class(model) || "glmerMod" %in% class(model)) {
+    random_effects <- paste(names(VarCorr(model)), collapse = ", ")
+    variances <- paste(format(VarCorr(model), digits = 2), collapse = ", ")
+  } else {
+    random_effects <- NA
+    variances <- NA
+  }
+  
+  cbind(
+    `Response (y)` = deparse(summary(model)$call$formula[[2]]),
+    `Model` = as.character(summary(model)$call[[1]]),
+    Formula = paste ("y ~", deparse(summary(model)$call$formula[[3]])),
+    anova_results %>%
+      dplyr::mutate(
+        statistic = round(statistic, digits = 2),
+        signif = gtools::stars.pval(p.value),
+        p.value = round(p.value, digits = 3),
+        p.value = format.pval(p.value, digits = 3)
+      ),
+    random_effects = random_effects,
+    variances = variances
+  ) %>% as.data.frame
+}
+```
+
+* Create a list that contains all models
+
+```{r}
+sum.model <- list(model_gameto_age_final, glm_model, model_weight_d, model_feces_age)
+```
+
+* Apply the function to the list
+
+```{r message=FALSE, warning=FALSE}
+univariate.output <- purrr::map(.x = sum.model, .f = get.univariate.results) %>%
+  dplyr::bind_rows()
+univariate.output <- dplyr::rename(univariate.output, c(Factor = term, `Test value` = statistic, `P value`= p.value))
+
+knitr::kable(univariate.output)
+write.table(univariate.output, file = "models_stat_densityexp.txt", sep = ";", dec = ".")
+```

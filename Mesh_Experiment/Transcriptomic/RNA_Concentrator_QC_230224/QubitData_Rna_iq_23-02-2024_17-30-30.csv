@@ -1,0 +1,3 @@
+"Run ID","Assay Name","Test Name","Test Date","RNA-IQ number","% SmallRNA","%LargeRNA","Sample Volume (uL)","Std 1 Green RFU","Std 1 Far Red RFU","Std 2 Green RFU","Std 2 Far Red RFU","Std 3 Green RFU","Std 3 Far Red RFU","Excitation","Emission","Green RFU","Far Red RFU"
+"2024-02-23","RNA Integrity & Quality","Sample_#240223-172722","23/02/2024 17:27:22","10.0","0%","100%","1","123.5","84.29","39817.6","11955.7","28641.8","20493","Blue and Red","Green and Far Red","5454.88","4976.18"
+"2024-02-23","RNA Integrity & Quality","Sample_#240223-172650","23/02/2024 17:26:50","10.0","0%","100%","1","123.5","84.29","39817.6","11955.7","28641.8","20493","Blue and Red","Green and Far Red","3886.29","2918.81"

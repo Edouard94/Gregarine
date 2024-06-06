@@ -1,0 +1,4 @@
+Lgryllorum_28S	contig_284_polished	100.000	935	0	0	1	935	6498	5564	0.0	1727
+Lgryllorum_28S	contig_455_polished	100.000	935	0	0	1	935	7187	6253	0.0	1727
+Lgryllorum_28S	contig_390_polished	100.000	935	0	0	1	935	35214	34280	0.0	1727
+Lgryllorum_28S	contig_497_polished	95.283	106	5	0	1	106	23948	24053	1.68e-41	169

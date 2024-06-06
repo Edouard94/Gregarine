@@ -1,0 +1,872 @@
+---
+title: "Analysis of Acheta domesticus mesh experiment (Nov 23)"
+author: "Edouard Bessette"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: yes
+    toc_float: yes
+  word_document:
+    toc: yes
+---
+
+```{r setup, include=FALSE}
+library(formatR)
+library(knitr)
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, tidy = TRUE, tidy.opts=list(width.cutoff=60),  fig.width = 6, fig.asp = 0.8, out.width = "80%")
+```
+
+# Load the necessary libraries
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+library(readxl)
+library(dplyr)
+library(tidyverse)
+library(ggplot2)
+library(viridis)
+library(survminer)
+library(survival)
+library(lmtest)
+library(lme4)
+library(RVAideMemoire)
+library(car)
+library(emmeans)
+library(multcomp)
+library(Hmisc)
+library(glmmTMB)
+library(modelsummary)
+library(extrafont)
+loadfonts()
+viridis_colors <- viridis_pal()(3)
+setwd("C:/Users/eb826/OneDrive - University of Exeter/PhD_EdouardMicrosporidia/Thesis/Chapter4_Leidyana gryllorum/Mesh experiment")
+```
+
+# Gametocysts analysis
+
+## Import data
+
+```{r }
+gametocysts_data <- read_excel("Mesh_Gametocysts.xlsx")
+colnames(gametocysts_data)
+```
+
+## Convert factors to appropriate levels
+
+```{r }
+gametocysts_data[c("Treatment", "R", "Box_Id", "Cricket_Age", "Dpi")] <- lapply(gametocysts_data[c("Treatment", "R", "Box_Id", "Cricket_Age", "Dpi")], factor)
+gametocysts_data[c("Faeces","Faeces_ind")] <- lapply(gametocysts_data[c("Faeces","Faeces_ind")], as.numeric)
+```
+
+## Reorganise levels of Treatment variable and convert variables to factors
+
+```{r }
+#gametocysts_data$Treatment <- factor(gametocysts_data$Treatment,levels = c("NonTreated","Treated"))
+```
+
+## Data summary
+
+```{r }
+str(gametocysts_data)
+summary(gametocysts_data)
+
+# Calculate summary statistics for each treatment group
+summary_stats <- aggregate(Gametocysts ~ Treatment, data = gametocysts_data, 
+                           FUN = function(x) c(mean = mean(x), 
+                                               median = median(x), 
+                                               sd = sd(x), 
+                                               min = min(x), 
+                                               max = max(x)))
+print(summary_stats)
+```
+
+## Create boxplot for treated group
+
+```{r}
+# Subset data for only 'Treated' level of Treatment
+treated_data <- subset(gametocysts_data, Treatment == "Treated")
+# Apply transformation to Gametocysts variable
+treated_data$sq_Gametocysts <- sqrt(treated_data$Gametocysts)
+
+# Create boxplot for the 'Treated' level of Treatment
+Gametocysts_boxplot <- ggplot(treated_data, aes(x = Treatment, y = sq_Gametocysts)) +
+  geom_boxplot() +
+  geom_point() +
+  theme_bw(base_family = "Times New Roman") +
+  theme(
+    axis.text = element_text(size = 12), 
+    axis.title = element_text(size = 12, vjust = 0.5),
+    legend.text = element_text(size = 10),
+    legend.title = element_text(size = 10),
+    legend.direction = "vertical",
+    plot.title = element_text(size = 12, face = "bold", hjust = 0.5)) +
+  labs(title = "Gametocysts count in Treated Treatment", y = "Square root of Gametocysts")
+Gametocysts_boxplot
+```
+
+## Create gametocyst curves over time
+
+```{r}
+# Calculate mean Gametocysts per dpi
+mean_gametocysts <- aggregate(Gametocysts ~ Dpi + Treatment, data = treated_data, FUN = mean)
+mean_gametocysts$Dpi <- as.numeric((mean_gametocysts$Dpi))
+
+# Plot with mean Gametocysts per dpi and curves
+Gametocyst_curves <- ggplot(mean_gametocysts, aes(x = Dpi, y = Gametocysts, group = Treatment)) +
+  geom_line(linewidth = 1) +
+  geom_point(size = 2, shape = 15) +
+  xlim(c(1,8)) +
+  theme_bw(base_family = "Times New Roman") +
+  theme(
+    axis.text = element_text(size = 12), 
+    axis.title = element_text(size = 12, vjust = 0.5),
+    legend.text = element_text(size = 10),
+    legend.title = element_text(size = 10),
+    legend.direction = "vertical",
+    legend.position = "right",
+    plot.title = element_text(size = 12, face = "bold", hjust = 0.5),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank()) +
+  labs(title = "Mean Gametocysts per Dpi for treated groups",
+       x = "Dpi",
+       y = "Mean Gametocysts")
+Gametocyst_curves
+```
+
+```{r}
+# Calculate mean Gametocysts per cricket age
+mean_gametocysts1 <- aggregate(Gametocysts ~ Cricket_Age + Treatment, data = treated_data, FUN = mean)
+
+# Add text for infection rounds
+y <- max(mean_gametocysts1$Gametocysts) * 0.95
+textaes <- data.frame(y = c(y, y, y, y, y, y),
+                      x = c(1, 6, 13, 21, 28, 35),
+                      lab = c("Inf 1", "Inf 2", "Inf 3", "Inf 4", "Inf 5", "Inf 6"))
+
+# Plot with mean Gametocysts per cricket age and curves
+Gametocyst_curves1 <- ggplot(mean_gametocysts1, aes(x = Cricket_Age, y = Gametocysts, group = Treatment)) +
+  geom_line(linewidth = 1) +
+  geom_point(size = 2, shape = 15) + 
+  scale_x_discrete(breaks = seq(19, 63, by = 1)) +
+  theme_bw(base_family = "Times New Roman") +
+  theme(
+    axis.text = element_text(size = 12), 
+    axis.title = element_text(size = 12),
+    axis.text.x = element_text(angle = 50, size = 8),
+    legend.text = element_text(size = 10),
+    legend.title = element_text(size = 10),
+    legend.direction = "vertical",
+    legend.position = "right",
+    plot.title = element_text(size = 12, face = "bold", hjust = 0.5),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank()) +
+  labs(title = "Mean Gametocysts per Crikcet Age for treated groups",
+       x = "Cricket Age (days)",
+       y = "Mean Gametocysts") +
+  geom_segment(aes(x = 1, y = 0, yend = y), 
+               colour = "red", linetype = "dashed", linewidth = 0.5) + 
+  geom_segment(aes(x = 6, y = 0, yend = y), 
+               colour = "red", linetype = "dashed", linewidth = 0.5) +
+  geom_segment(aes(x = 13, y = 0, yend = y), 
+               colour = "red", linetype = "dashed", linewidth = 0.5) +
+  geom_segment(aes(x = 21, y = 0, yend = y), 
+               colour = "red", linetype = "dashed", linewidth = 0.5) + 
+  geom_segment(aes(x = 28, y = 0, yend = y), 
+               colour = "red", linetype = "dashed", linewidth = 0.5) +
+  geom_segment(aes(x = 35, y = 0, yend = y), 
+               colour = "red", linetype = "dashed", linewidth = 0.5) + # Add infection rounds 
+   geom_text(mapping = aes(y = y*1.02, x = x, label = lab), hjust = -0.1, colour = "red", data = textaes, inherit.aes = FALSE)
+
+Gametocyst_curves1
+```
+
+## General model
+
+### Clean the data from 0 and NAs
+
+```{r}
+# Remove rows with missing values
+treated_data <- na.omit(treated_data)
+# Remove rows where Gametocysts equals 0
+#cleaned_data_zero <- cleaned_data[cleaned_data$Gametocysts != 0, ]
+# Remove unused levels
+#cleaned_data <- droplevels(cleaned_data)
+treated_data <- droplevels(treated_data)
+treated_data$Cricket_Age <- as.numeric(treated_data$Cricket_Age)
+str(treated_data)
+
+gametocysts_data <- na.omit(gametocysts_data)
+gametocysts_data <- droplevels(gametocysts_data)
+str(gametocysts_data)
+```
+
+```{r }
+# Look at the variable distrib
+hist(treated_data$Gametocysts)
+
+options(na.action = "na.fail") # needed for dredge()
+
+Full_model_dpi <- glmmTMB(Gametocysts ~ Dpi + Faeces + N_ind + (1|Box_Id), data = treated_data, nbinom2(link = "log"))
+diagnose(Full_model_dpi)
+```
+
+### Check models
+
+```{r }
+fixef(Full_model_dpi)
+library(MuMIn)
+dredge <- dredge(Full_model_dpi)
+
+library(performance)
+check_overdispersion(Full_model_dpi)
+#Overdispersion test: dispersion ratio = 0.454 (p = 0.248)
+```
+
+### Test significance of each term of the model with Anova for the Dpi model
+
+```{r }
+summary(Full_model_dpi)
+Anova(Full_model_dpi, type="II")
+
+pairwise_comp_gdpi <- emmeans(Full_model_dpi, pairwise ~ Dpi, type="response")
+pairwise_comp_gdpi
+cld_dpi <- cld(pairwise_comp_gdpi, adjust="fdr", Letters=letters)
+
+# Plot the emmeans object
+## Remove spaces in .group 
+cld_dpi$.group=gsub(" ", "", cld_dpi$.group)
+
+# Apply the nudge amount in geom_text
+plot_cld_dpi <- ggplot(cld_dpi, aes(x = Dpi, y = response, label = .group)) +
+  geom_point(shape = 15, size = 3) +
+  geom_errorbar(aes(ymin = asymp.LCL, ymax =  asymp.UCL), width = 0.2, size = 0.7) +
+  #geom_text(nudge_y = c(50, 65, 110, 125, 150, 140, 950, 300, 915),
+            #color='black') +
+  geom_text(aes(y = asymp.UCL),  # Set y = upper.CL
+            nudge_y = 50,  # Adjust this value as needed
+            size = 5,
+            color='black') +
+  theme_bw(base_family = "Times New Roman") + 
+  theme(plot.title = element_text(face = "bold", size = 12, hjust = 0.5),
+        axis.title.y = element_text(size = 12), 
+        axis.title.x = element_text(size = 12),  
+        axis.text.x = element_text(angle = 50, vjust = 1, hjust = 1, size = 12),
+        axis.text.y = element_text(size = 12)) +
+  labs(title = "Gametocysts emmeans across Dpi",
+       x = "Days post infection",
+       y = "Emmeans of Gametocyst counts") +
+  scale_x_discrete(limits = as.character(0:8))
+plot_cld_dpi
+#ggsave("plot_cld_dpi.png", plot_cld_dpi, dpi = 500, width = 6, height = 4, units = "in")
+
+pairwise_comp_gf <- emmeans(Full_model_dpi, pairwise ~ Faeces, type="response")
+pairwise_comp_gf
+cld_f <- cld(pairwise_comp_gf, adjust="fdr", Letters=letters)
+```
+
+# Survival analysis
+
+## Import data
+
+```{r }
+survival_data <- read_excel("Mesh_Survival.xlsx")
+colnames(survival_data)
+```
+## Convert factors to appropriate levels
+
+```{r }
+survival_data[c("Treatment", "R")] <- lapply(survival_data[c("Treatment", "R")], factor)
+```
+
+## Data summary
+
+```{r }
+str(survival_data)
+summary(survival_data)
+```
+
+## Check mortality (sanity check)
+
+```{r }
+# Calculate total number of crickets and number of deaths by treatment
+total_Adomesticus <- survival_data %>% 
+  group_by(Treatment) %>% 
+  summarise(total = n())
+
+mortality_Adomesticus <- survival_data %>% 
+  group_by(Treatment, Censor) %>% 
+  summarise(mortality = sum(Censor == 1)) %>%
+  filter(Censor == 1) # Keep only dead crickets
+
+# Merge total and mortality data frames
+Adomesticus_check <- merge(total_Adomesticus, mortality_Adomesticus, by = "Treatment", all = TRUE)
+
+# Calculate percentage of mortality
+Adomesticus_check$percent <- (Adomesticus_check$mortality / Adomesticus_check$total) * 100
+print(Adomesticus_check)
+
+# Create a data frame with the required columns
+contingency_data <- data.frame(Treatment = Adomesticus_check$Treatment,
+                               Alive = Adomesticus_check$total - Adomesticus_check$mortality,
+                               Dead = Adomesticus_check$mortality)
+
+# Set Treatment as row names
+row.names(contingency_data) <- contingency_data$Treatment
+contingency_data$Treatment <- NULL
+print(contingency_data)
+
+# Perform chi-square test
+chi_square_test <- chisq.test(contingency_data)
+print(chi_square_test)
+```
+
+## Surv curves by treatments
+
+```{r }
+surv <- survfit(Surv(Death_time, Censor) ~ Treatment, data = survival_data)
+surv_plot <- ggsurvplot(
+  fit = surv,
+  conf.int = TRUE,
+  #conf.int.style = "step",
+  ylim=c(0,1),
+  conf.int.alpha = 0.1, 
+  surv.scale = "percent",
+  surv.median.line = "hv",
+  break.x.by = 7,
+  title = "Cricket survival per treatment (with CI)",
+  xlab ="Cricket age (days)",
+  legend.title = "Treatment",
+  legend.labs = c("Untreated","Treated"),
+  #palette = c("#c4c4ff","#ffc4c4"),
+  ggtheme = theme_bw(base_family = "Times New Roman") +
+    theme(
+      axis.text = element_text(size = 12), 
+      axis.title = element_text(size = 12, vjust = 0.5),
+      legend.text = element_text(size = 10),
+      legend.title = element_text(size = 10, face = "bold"),
+      legend.direction = "horizontal",
+      plot.title = element_text(size = 12, face = "bold", hjust = 0.5)))
+surv_plot
+
+# Get p-values as letters with coordinates
+pvalue_letters <- surv_pvalue(surv, get_coord = TRUE)
+
+# Add p-values as annotations
+surv_plot$plot <- surv_plot$plot +
+  ggplot2::annotate("text", x = pvalue_letters$pval.x, y = pvalue_letters$pval.y, label = pvalue_letters$pval.txt, size = 4, color = "black")
+
+# Display the plot with p-values
+surv_plot$plot
+
+ggsave("surv_plot.png", surv_plot$plot, dpi = 500, width = 5, height = 4, units = "in")
+```
+
+## LT50 determined with median values
+
+```{r }
+summary(surv)$table
+```
+
+## Determine if we have a constant risk or not
+
+```{r }
+plotsurvivors(survival_data$Death_time, survival_data$Censor)
+# The instantaneous risk is considered constant if the points on the survival curve are roughly aligned on a straight line.
+## Here the instant risk is constant, then we opt for a survival regression model
+```
+
+## Surv reg model
+
+### Find the best distribution for our survival data
+```{r}
+# Create vector of parametric distributions to test
+distList <- c(distList <- c("extreme", "logistic", "gaussian", "weibull", "exponential", "rayleigh", "lognormal", "loglogistic", "t"))
+
+# Function fits each distribution and extracts AIC, BIC, log-likelihood values
+## The distribution is estimated on the event data without any covariate (~ 1)
+fit_dist <- function(dist) {
+  tmp <- survreg(Surv(Death_time, Censor) ~ 1, data = survival_data, dist = dist)
+  c(AIC(tmp), BIC(tmp), as.numeric(logLik(tmp)))
+}
+
+# Apply above function to each distribution in the distList
+results_list <- lapply(distList, fit_dist)
+
+# Convert the above list of results to a data frame
+results_df <- data.frame(t(matrix(unlist(results_list), nrow = 3)))
+colnames(results_df) <- c("aic", "bic", "logLik")
+rownames(results_df) <- distList
+
+# Find the distribution with the lowest AIC, BIC, and logLik values
+bestFitAIC <- rownames(results_df)[which.min(results_df$aic)]
+bestFitBIC <- rownames(results_df)[which.min(results_df$bic)]
+bestFitLogLik <- rownames(results_df)[which.max(results_df$logLik)]
+
+# Print the results data frame and best fitting distributions
+results_df
+cat("\nBest fitting distribution using AIC:", bestFitAIC, "\n")
+cat("\nBest fitting distribution using BIC:", bestFitBIC, "\n")
+cat("\nBest fitting distribution using Log-Likelihood:", bestFitLogLik, "\n")
+## The best distribution here is lognormal 
+
+# We can check graphically how the distribution is fitting to the survival data
+require(flexsurv)
+s <- with(survival_data,Surv(Death_time,Censor))
+sLnorm  <- flexsurvreg(s ~ 1,dist="lnorm",data=survival_data)
+sExp  <- flexsurvreg(s ~ 1,dist="exponential",data=survival_data) 
+plot(sLnorm) +
+  lines(sExp, col = "blue")
+```
+
+```{r }
+model_surv <- survreg(Surv(Death_time, Censor) ~ Treatment, data = survival_data, dist="lognormal") # distribution determined earlier
+summary(model_surv)
+RVAideMemoire::plotresid(model_surv)
+Anova(model_surv, type="II")
+# According to the model ANOVA, density had a significant impact on survival
+```
+
+# Emergence analysis
+
+## Import data
+
+```{r }
+emergence_data <- read_excel("Mesh_Emergence.xlsx")
+colnames(emergence_data)
+```
+
+### Convert factors to appropriate levels
+
+```{r }
+emergence_data[c("Treatment","R","Sex", "Box_ID")] <- lapply(emergence_data[c("Treatment","R","Sex", "Box_ID")],factor)
+```
+
+### Data summary
+
+```{r }
+str(emergence_data)
+
+# Filter the data to include only rows where Censor equals 1
+filtered_data <- filter(emergence_data, Censor == 1)
+
+# Group by Treatment, Infection, and Density, and summarize the counts of Sex
+emmergence_summary_table <- filtered_data %>%
+  group_by(Treatment, R) %>%
+  summarise(Count_of_Sex = n()) %>%
+  arrange(Treatment, R)
+
+# Print the summarized table
+print(emmergence_summary_table)
+```
+
+## Calculate proportions and perform chi-square tests
+
+```{r echo=TRUE, message=FALSE}
+emergence_table <- emergence_data %>%
+  group_by(Treatment) %>%
+  summarise(y1 = sum(Censor == 1), #Number of emerged crickets
+            y2 = sum(Censor == 0)   #Number of non-emerged crickets
+  ) %>%
+  mutate(y1_prop = y1 / (y1 + y2), #Proportion of emerged crickets
+         y2_prop = y2 / (y1 + y2))   #Proportion of non-emerged crickets
+
+print(emergence_table)
+
+# Create the contingency table
+contingency_table <- as.matrix(emergence_table[, c("y1", "y2")])
+rownames(contingency_table) <- paste(emergence_table$Treatment)
+colnames(contingency_table) <- c("Emerged", "Non-emerged")
+
+# Perform chi-square test
+chisq_result <- chisq.test(contingency_table)
+print(chisq_result)
+
+# Perform pairwise comparisons using fdr correction
+pairwise_chisq <- pairwise.prop.test(x = contingency_table, p.adjust.method = "fdr")
+print(pairwise_chisq)
+```
+## LT50 table
+
+```{r }
+surv_emergence <- survfit(Surv(Emergence_time,Censor) ~ Sex,data = emergence_data)
+summary(surv_emergence)$table
+```
+
+## Surv curve emergence
+
+```{r }
+surv_emergence <- survfit(Surv(Emergence_time,Censor) ~ Treatment,data = emergence_data)
+surv_plot_emergence <- ggsurvplot(
+  fit = surv_emergence,
+  surv.scale = "percent",
+  title = "Cricket emergence across treatment",
+  ylab = "Cricket emergence",
+  xlab = "Cricket age (days)",
+  legend.title = "Treatment",
+  legend.labs = c("Non Treated","Treated"),
+  palette = c("#c4c4ff","#ffc4c4"),
+  xlim = c(40,62),
+  break.x.by = 4,
+  fun="event",
+  ggtheme = theme_bw(base_family = "Times New Roman") +
+    theme(
+      axis.text = element_text(size = 12), 
+      axis.title = element_text(size = 12, vjust = 0.5),
+      legend.text = element_text(size = 10),
+      legend.title = element_text(size = 10, face = "bold"),
+      plot.title = element_text(size = 12, face = "bold", hjust = 0.5)))
+surv_plot_emergence$plot
+#ggsave("emergence_plot.png", p1, dpi = 500, width = 4.5, height = 4, units = "in")
+
+# Get p-values as letters with coordinates
+pvalue_letters <- surv_pvalue(surv_emergence, get_coord = TRUE)
+
+# Add p-values as annotations
+surv_plot_emergence$plot <- surv_plot_emergence$plot +
+  ggplot2::annotate("text", x = pvalue_letters$pval.x, y = pvalue_letters$pval.y, label = pvalue_letters$pval.txt, size = 4, color = "black")
+
+# Display the plot with p-values
+surv_plot_emergence$plot
+```
+
+## Surv curve male
+
+```{r }
+# Subset for males
+df_males <- subset(emergence_data, Sex == "Male" | Sex == "NA")
+
+
+surv_male <- survfit(Surv(Emergence_time,Censor) ~ Treatment,data = df_males)
+surv_plot_male <- ggsurvplot(
+  fit = surv_male,
+  surv.scale = "percent",
+  title = "Cricket male emergence",
+  ylab = "Cricket emergence",
+  legend = "none",
+  #legend.title = "Treatment",
+  #legend.labs = c("Non Treated","Treated"),
+  palette = c("#c4c4ff","#ffc4c4"),
+  xlim = c(40,62),
+  break.x.by = 4,
+  fun="event",
+  ggtheme = theme_bw(base_family = "Times New Roman") +
+    theme(
+      axis.text = element_text(size = 12), 
+      axis.title = element_text(size = 12, vjust = 0.5),
+      legend.text = element_text(size = 10),
+      legend.title = element_text(size = 10),
+      plot.title = element_text(size = 12, face = "bold", hjust = 0.5)))
+surv_plot_male
+#ggsave("emergence_male_plot.png", surv_plot_male$plot, dpi = 500, width = 2.6, height = 3.5, units = "in")
+```
+
+## Surv curve female
+
+```{r }
+# Subset for females
+df_females <- subset(emergence_data, Sex == "Female" | Sex == "NA")
+
+surv_female <- survfit(Surv(Emergence_time,Censor) ~ Treatment,data = df_females)
+surv_plot_female <- ggsurvplot(
+  fit = surv_female,
+  surv.scale = "percent",
+  title = "Cricket female emergence",
+  ylab = "Cricket emergence",
+  legend = "none",
+  #legend.title = "Treatment",
+  #legend.labs = c("Non Treated","Treated"),
+  palette = c("#c4c4ff","#ffc4c4"),
+  xlim = c(40,62),
+  break.x.by = 4,
+  fun="event",
+  ggtheme = theme_bw(base_family = "Times New Roman") +
+    theme(
+      axis.text = element_text(size = 12), 
+      axis.title = element_text(size = 12, vjust = 0.5),
+      legend.text = element_text(size = 10),
+      legend.title = element_text(size = 10),
+      plot.title = element_text(size = 12, face = "bold", hjust = 0.5)))
+surv_plot_female
+#ggsave("emergence_female_plot.png", surv_plot_female$plot, dpi = 500, width = 2.6, height = 3.5, units = "in")
+```
+
+## Arrange the surv plots together
+
+```{r }
+splots <- list(surv_plot_female, surv_plot_male)
+arrange <- arrange_ggsurvplots(splots, print = TRUE, ncol = 2, nrow = 1)
+arrange
+```
+
+## Generalized linear model – binomial family
+
+```{r }
+# Filter out NA values from the initial data set
+emergence_data_filtered <- emergence_data %>% filter(Sex != "NA")
+
+glm_model <- glm(Emergence_time ~ Treatment * Sex, data = (emergence_data_filtered),family = Gamma(link = "inverse"))
+```
+
+### Check model and Anova
+
+```{r }
+RVAideMemoire::plotresid(glm_model)
+
+summary(glm_model)
+Anova(glm_model,type="II")
+# Only Sex is significant, with Infection and Infection:Density almost significant (0.09)
+```
+
+### Pairwise comparisons 
+
+```{r }
+pairwise_comp_trt <- emmeans(glm_model, pairwise ~ Treatment, type="response")
+pairwise_comp_trt
+cld(pairwise_comp_trt, adjust="fdr", Letters=letters)
+```
+
+# Feed and feces analysis
+
+## Import data
+
+```{r }
+feed_feces_data <- read_excel("Mesh_Gametocysts.xlsx")
+colnames(feed_feces_data)
+summary(feed_feces_data)
+```
+
+## Reorganise levels of Treatment variable and convert variables to factors
+
+```{r }
+feed_feces_data[c("Treatment", "R", "Box_Id", "Cricket_Age", "Dpi")] <- lapply(feed_feces_data[c("Treatment", "R", "Box_Id", "Cricket_Age", "Dpi")], factor)
+feed_feces_data[c("Faeces","Faeces_ind")] <- lapply(feed_feces_data[c("Faeces","Faeces_ind")], as.numeric)
+
+# Remove rows with NA in Faeces_ind or Treatment
+feed_feces_data <- feed_feces_data %>% drop_na(Faeces_ind, Treatment)
+
+str(feed_feces_data)
+```
+
+## Calculate mean and standard deviation for each response variable by treatment
+
+```{r }
+summary_data_f <- aggregate(cbind(Faeces_ind) ~ Treatment, feed_feces_data, FUN = function(x) c(mean = mean(x), sd = sd(x)))
+print(summary_data_f)
+```
+
+## Boxplot of Feed Consumed by Treatment
+
+```{r }
+boxplot_feces <- ggplot(feed_feces_data, aes(x = Treatment, y = Faeces_ind, color = Treatment)) +
+  geom_boxplot() +
+  geom_point() +
+  scale_color_viridis_d() +
+  labs(title = "Faeces produced by treatment",
+       x = "Treatment",
+       y = "Faeces produced per individual and per day (mg)") +
+  theme_bw(base_family = "Times New Roman") + 
+  theme(axis.text = element_text(size = 12), 
+        axis.title = element_text(size = 12), 
+        plot.title = element_text(size = 12, face = "bold", hjust = 0.5))
+boxplot_feces
+```
+
+## Feces model
+
+```{r }
+hist(feed_feces_data$Faeces_ind)
+
+model_feces <- lmer(Faeces_ind ~  Treatment + (1|Box_Id), data = feed_feces_data) #The box id is a random effect (different box measured across different time points)
+model_feces_age <- lmer(Faeces_ind ~  Treatment * Cricket_Age + (1|Box_Id), data = feed_feces_data)
+
+anova(model_feces, model_feces_age)
+# The model including Cricket age has significant lower AIC and BIC and a higher logLik
+```
+
+#### Check residuals and compare the models and test significance of each term of the model with Anova
+
+```{r }
+RVAideMemoire::plotresid(model_feces_age)
+
+summary(model_feces_age)
+Anova(model_feces_age, type="II")
+```
+
+#### Pairwise comparisons
+
+```{r }
+pairwise_comp_faeces <- emmeans(model_feces_age, pairwise ~ Cricket_Age, type="response")
+pairwise_comp_faeces
+cld(pairwise_comp_faeces, adjust="fdr", Letters=letters)
+
+pairwise_comp_faeces1 <- emmeans(model_feces_age, pairwise ~ Treatment*Cricket_Age, type="response")
+pairwise_comp_faeces1
+
+# Compute the CLDs
+cld_results <- cld(pairwise_comp_faeces1, adjust="fdr", Letters=letters)
+
+# Create the interaction plot
+emmip_plot <- emmip(pairwise_comp_faeces1, Treatment ~ Cricket_Age, CIs = TRUE) +
+  theme_bw(base_family = "Times New Roman") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(x = "Cricket age (days)", y = "Emmeans of prouced faeces per day (mg)")  # Add this line
+emmip_plot
+#ggsave("emmeans_faeces_age_plot.png", emmip_plot, dpi = 500, width = 7.4, height = 4, units = "in")
+```
+
+# Haemocytes analysis
+
+## Import data
+
+```{r }
+haemocytes_data <- read_excel("Mesh_Hemocytes.xlsx", sheet = 2)
+colnames(haemocytes_data)
+summary(haemocytes_data)
+```
+
+## Reorganise levels of Treatment variable and convert variables to factors
+
+```{r }
+haemocytes_data[c("Treatment", "R", "Gregarine_pres", "Ind")] <- lapply(haemocytes_data[c("Treatment", "R", "Gregarine_pres", "Ind")], factor)
+haemocytes_data[c("Weight", "Haemocyte_uL", "Haemocyte")] <- lapply(haemocytes_data[c("Weight", "Haemocyte_uL", "Haemocyte")], as.numeric)
+str(haemocytes_data)
+```
+
+## Calculate mean and standard deviation for each response variable by treatment
+
+```{r }
+summary_data_f <- aggregate(cbind(Haemocyte_uL) ~ Treatment, haemocytes_data, 
+                            FUN = function(x) c(mean = mean(x), se = sd(x)/sqrt(length(x))))
+print(summary_data_f)
+```
+
+## Correlation Analysis
+```{r }
+# Remove rows with NA in Weight column
+haemocytes_data_clean <- haemocytes_data %>% drop_na(Weight)
+
+# Calculate correlation
+cor(haemocytes_data_clean %>% select_if(is.numeric))
+```
+
+## GLM model
+```{r }
+hist(haemocytes_data_clean$Haemocyte_uL)
+
+glm_model_treatment <- glm.nb(Haemocyte_uL ~ Treatment, data = (haemocytes_data_clean))
+
+glm_model_treatment <- glmmTMB(Haemocyte_uL ~ Treatment, data = (haemocytes_data_clean), nbinom2(link = "log"))
+
+# Check for overdispersion
+overdispersion <- glm_model_treatment$deviance / glm_model_treatment$df.residual
+print(overdispersion)
+```
+
+### Check model and Anova
+
+```{r }
+RVAideMemoire::plotresid(glm_model_treatment)
+
+summary(glm_model_treatment)
+Anova(glm_model_treatment,type="II")
+```
+
+### Pairwise comparisons
+
+```{r }
+pairwise_comp_h <- emmeans(glm_model_treatment, pairwise ~ Treatment, type="response")
+pairwise_comp_h
+cld(pairwise_comp_h, adjust="fdr", Letters=letters)
+```
+
+## Weight analysis from hemocytes data
+
+```{r}
+boxplot_weight <- ggplot(haemocytes_data_clean, aes(x = Treatment, y = Weight, color = Treatment),
+  legend.title = "Treatment") +
+  geom_boxplot() +
+  geom_point() +
+  scale_color_viridis_d() +
+  labs(title = "Weight of sampled males by treatment",
+       x = "Treatment",
+       y = "Weight (mg)") +
+  theme_bw(base_family = "Times New Roman") + 
+  theme(axis.text = element_text(size = 12), 
+        axis.title = element_text(size = 12), 
+        plot.title = element_text(size = 12, face = "bold", hjust = 0.5))
+boxplot_weight
+ggsave("boxplot_weight.png", boxplot_weight, dpi = 500, width = 6, height = 4, units = "in")
+
+# Calculate summary statistics for each treatment group with standard error
+summary_stats_weight <- aggregate(haemocytes_data_clean$Weight ~ Treatment, data = haemocytes_data_clean, 
+                                  FUN = function(x) c(mean = mean(x), 
+                                                      median = median(x), 
+                                                      se = sd(x) / sqrt(length(x)), 
+                                                      min = min(x), 
+                                                      max = max(x)))
+
+# Convert the resulting matrix into a data frame for better readability
+summary_stats_weight <- do.call(data.frame, summary_stats_weight)
+
+# Give meaningful names to the columns
+names(summary_stats_weight) <- c("Treatment", "Mean", "Median", "SE", "Min", "Max")
+
+# View the summary statistics
+summary_stats_weight
+
+# Model analysis
+hist(haemocytes_data_clean$Weight)
+lm_weigth <- lm(haemocytes_data_clean$Weight ~ Treatment, data = haemocytes_data_clean)
+summary(lm_weigth)
+RVAideMemoire::plotresid(lm_weigth)
+Anova(lm_weigth, type="II")
+```
+
+# Create a table that compiles all the above statistical outputs from the Anova objects
+
+* Function to extract results
+
+```{r}
+get.univariate.results <- function(model) {
+  anova_results <- car::Anova(model, type = "II") %>% broom::tidy()
+  
+  if ("lme" %in% class(model) || "lmerMod" %in% class(model) || "glmerMod" %in% class(model)) {
+    random_effects <- paste(names(VarCorr(model)), collapse = ", ")
+    variances <- paste(format(VarCorr(model), digits = 2), collapse = ", ")
+  } else {
+    random_effects <- NA
+    variances <- NA
+  }
+  
+  cbind(
+    `Response (y)` = deparse(summary(model)$call$formula[[2]]),
+    `Model` = as.character(summary(model)$call[[1]]),
+    Formula = paste ("y ~", deparse(summary(model)$call$formula[[3]])),
+    anova_results %>%
+      dplyr::mutate(
+        statistic = round(statistic, digits = 2),
+        signif = gtools::stars.pval(p.value),
+        p.value = round(p.value, digits = 3),
+        p.value = format.pval(p.value, digits = 3)
+      ),
+    random_effects = random_effects,
+    variances = variances
+  ) %>% as.data.frame
+}
+```
+
+* Create a list that contains all models
+
+```{r}
+sum.model <- list(Full_model_dpi, glm_model, model_feces_age, glm_model_treatment)
+```
+
+* Apply the function to the list
+
+```{r message=FALSE, warning=FALSE}
+univariate.output <- purrr::map(.x = sum.model, .f = get.univariate.results) %>%
+  dplyr::bind_rows()
+univariate.output <- dplyr::rename(univariate.output, c(Factor = term, `Test value` = statistic, `P value`= p.value))
+
+knitr::kable(univariate.output)
+write.table(univariate.output, file = "models_stat_meshexp.txt", sep = ";", dec = ".")
+```
