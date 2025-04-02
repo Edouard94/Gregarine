@@ -1,0 +1,12 @@
+PROTEOME COMPARISON SUMMARY
+===========================
+
+Total proteins analyzed from L. gryllorum: 3211
+Total proteins analyzed from G. niphandrodes: 6362
+
+Shared proteins: 1277 (41.2% of L. gryllorum, 20.1% of G. niphandrodes)
+Unique to L. gryllorum: 1628 (52.5%)
+Unique to G. niphandrodes: 5046 (79.4%)
+
+Proteins without hits in L. gryllorum: 112 (3.5%)
+Proteins without hits in G. niphandrodes: 5 (0.1%)
