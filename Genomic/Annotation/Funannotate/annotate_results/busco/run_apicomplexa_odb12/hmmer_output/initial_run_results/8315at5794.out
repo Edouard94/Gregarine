@@ -1,0 +1,44 @@
+#                                                                            --- full sequence --- -------------- this domain -------------   hmm coord   ali coord   env coord
+# target name        accession   tlen query name           accession   qlen   E-value  score  bias   #  of  c-Evalue  i-Evalue  score  bias  from    to  from    to  from    to  acc description of target
+#------------------- ---------- ----- -------------------- ---------- ----- --------- ------ ----- --- --- --------- --------- ------ ----- ----- ----- ----- ----- ----- ----- ---- ---------------------
+ACNH67_002111-T1     -            535 8315                 -            389   4.9e-53  178.7   0.0   1   2   2.5e-28     5e-26   89.8   0.0   112   246   229   364   202   371 0.83 ACNH67_002111
+ACNH67_002111-T1     -            535 8315                 -            389   4.9e-53  178.7   0.0   2   2     2e-27     4e-25   86.8   0.0   240   374   397   533   392   535 0.81 ACNH67_002111
+ACNH67_004263-T1     -            141 8315                 -            389     2e-26   91.1   0.0   1   1   1.1e-28   2.3e-26   90.9   0.0   127   245     9   125     1   128 0.91 ACNH67_004263
+ACNH67_004264-T1     -            105 8315                 -            389   3.8e-19   67.2   0.4   1   1   2.1e-21   4.2e-19   67.0   0.4   284   384     2   104     1   105 0.76 ACNH67_004264
+ACNH67_002892-T1     -            463 8315                 -            389   1.2e-13   49.0   0.2   1   1   8.2e-16   1.7e-13   48.6   0.2   301   386   374   460   350   463 0.75 ACNH67_002892
+ACNH67_002375-T1     -            699 8315                 -            389   2.8e-13   47.9   0.9   1   1   2.1e-15   4.2e-13   47.3   0.9   312   387   526   602   491   604 0.83 ACNH67_002375
+ACNH67_001822-T1     -            413 8315                 -            389   1.2e-12   45.8   0.5   1   1   8.1e-15   1.6e-12   45.3   0.5   337   386   332   384   318   387 0.89 ACNH67_001822
+ACNH67_005326-T1     -            653 8315                 -            389   1.7e-11   42.0   5.5   1   1   1.3e-13   2.6e-11   41.4   5.5   332   385   548   602   540   605 0.88 ACNH67_005326
+ACNH67_003820-T1     -            443 8315                 -            389   1.4e-10   39.0   2.4   1   1   8.8e-13   1.8e-10   38.6   2.4   320   385   373   438   361   442 0.80 ACNH67_003820
+ACNH67_000210-T1     -            601 8315                 -            389   1.7e-10   38.7   0.2   1   1   1.4e-12   2.7e-10   38.0   0.2   303   387   450   532   412   534 0.68 ACNH67_000210
+ACNH67_001884-T1     -            262 8315                 -            389   7.3e-10   36.6   0.1   1   1   5.5e-12   1.1e-09   36.0   0.1   182   255   111   185   106   191 0.87 ACNH67_001884
+ACNH67_000589-T1     -             96 8315                 -            389     9e-09   33.0   6.8   1   1   5.4e-11   1.1e-08   32.7   6.8   338   386    10    60     3    63 0.82 ACNH67_000589
+ACNH67_001793-T1     -            467 8315                 -            389   1.7e-07   28.8   3.1   1   1   1.4e-09   2.8e-07   28.1   3.1   359   386    71    98    68   100 0.93 ACNH67_001793
+ACNH67_003375-T1     -            445 8315                 -            389   2.7e-07   28.1   1.1   1   1   1.8e-09   3.7e-07   27.7   1.1   329   386    74   130    43   133 0.78 ACNH67_003375
+ACNH67_002379-T1     -            267 8315                 -            389   8.7e-07   26.5   1.9   1   1   5.3e-09   1.1e-06   26.2   1.9   335   386    96   145    61   148 0.74 ACNH67_002379
+ACNH67_004064-T1     -           1659 8315                 -            389   1.3e-06   25.8   0.6   1   1   1.3e-08   2.6e-06   24.9   0.6   334   383  1317  1370  1300  1375 0.78 ACNH67_004064
+ACNH67_000948-T1     -           1402 8315                 -            389   3.1e-06   24.7   0.1   1   1   2.8e-08   5.7e-06   23.8   0.1   328   387  1110  1170  1082  1172 0.71 ACNH67_000948
+ACNH67_001303-T1     -            171 8315                 -            389   1.2e-05   22.7   5.4   1   1   9.2e-08   1.9e-05   22.1   5.4   339   386     5    58     2    61 0.77 ACNH67_001303
+ACNH67_000694-T1     -            583 8315                 -            389   0.00019   18.8   0.2   1   1   1.6e-06   0.00033   18.0   0.2   332   375   468   513   436   519 0.78 ACNH67_000694
+ACNH67_003690-T1     -             99 8315                 -            389   0.00022   18.6  10.6   1   1   1.3e-06   0.00025   18.4  10.6   338   380    40    87    12    94 0.72 ACNH67_003690
+ACNH67_000550-T1     -            880 8315                 -            389   0.00022   18.6   6.5   1   2   1.1e-06   0.00022   18.6   6.5   358   384   319   345   309   349 0.90 ACNH67_000550
+ACNH67_000550-T1     -            880 8315                 -            389   0.00022   18.6   6.5   2   2      0.15        29    1.7   1.4   315   382   365   435   352   440 0.75 ACNH67_000550
+ACNH67_005398-T1     -           1068 8315                 -            389   0.00026   18.3   2.7   1   1   2.5e-06   0.00051   17.4   2.7   332   385   195   245   161   248 0.72 ACNH67_005398
+ACNH67_000807-T1     -           1268 8315                 -            389   0.00075   16.8   3.1   1   1   6.1e-06    0.0012   16.1   3.1   336   385   536   584   501   587 0.84 ACNH67_000807
+ACNH67_001119-T1     -           1673 8315                 -            389    0.0008   16.7   6.2   1   1     6e-06    0.0012   16.1   6.2   330   383  1612  1671  1584  1673 0.75 ACNH67_001119
+ACNH67_000063-T1     -            227 8315                 -            389    0.0021   15.3   0.9   1   1   1.3e-05    0.0027   15.0   0.9   349   386   175   212   142   215 0.72 ACNH67_000063
+ACNH67_002860-T1     -            233 8315                 -            389    0.0026   15.0   3.8   1   1   1.8e-05    0.0037   14.5   3.8   339   385     4    54     1    57 0.82 ACNH67_002860
+ACNH67_004949-T1     -            593 8315                 -            389      0.17    9.1   5.6   1   1    0.0024      0.49    7.5   5.6   354   374   374   395   305   412 0.74 ACNH67_004949
+ACNH67_002542-T1     -           2517 8315                 -            389      0.56    7.4   7.0   1   2    0.0017      0.35    8.0   3.0   336   385     4    59     1    63 0.83 ACNH67_002542
+ACNH67_002542-T1     -           2517 8315                 -            389      0.56    7.4   7.0   2   2      0.37        75    0.3   0.1   307   370   225   284   219   294 0.69 ACNH67_002542
+ACNH67_004664-T1     -           1214 8315                 -            389       3.7    4.6   6.6   1   1     0.033       6.7    3.8   6.6   326   385  1154  1207  1145  1210 0.82 ACNH67_004664
+#
+# Program:         hmmsearch
+# Version:         3.1b2 (February 2015)
+# Pipeline mode:   SEARCH
+# Query file:      /home/edouard/GregarineStuff/Lgryllorum_Genome_analysis/Funannotate/Run_v3/species_train/annotate_results/busco_downloads/lineages/apicomplexa_odb12/hmms/8315at5794.hmm
+# Target file:     /home/edouard/GregarineStuff/Lgryllorum_Genome_analysis/Funannotate/Run_v3/species_train/annotate_results/Leidyana_gryllorum.proteins.fa
+# Option settings: hmmsearch --domtblout /home/edouard/GregarineStuff/Lgryllorum_Genome_analysis/Funannotate/Run_v3/species_train/annotate_results/busco/run_apicomplexa_odb12/hmmer_output/initial_run_results/8315at5794.out --cpu 1 /home/edouard/GregarineStuff/Lgryllorum_Genome_analysis/Funannotate/Run_v3/species_train/annotate_results/busco_downloads/lineages/apicomplexa_odb12/hmms/8315at5794.hmm /home/edouard/GregarineStuff/Lgryllorum_Genome_analysis/Funannotate/Run_v3/species_train/annotate_results/Leidyana_gryllorum.proteins.fa 
+# Current dir:     /home/edouard/GregarineStuff/Lgryllorum_Genome_analysis/Funannotate/Run_v3/species_train/annotate_results
+# Date:            Tue Apr  1 17:39:39 2025
+# [ok]

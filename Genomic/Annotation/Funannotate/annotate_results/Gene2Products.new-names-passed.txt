@@ -1,0 +1,26 @@
+#Name	Passed Description
+ANKEF1	Ankyrin repeat and EF-hand
+ARL13A	GTP binding
+CDPK1	Calcium-dependent protein kinase
+CEN2	Centrin-2
+CLEC1A	C-type lectin (CTL) or carbohydrate-recognition domain (CRD)
+DNAJC14	sub C member 14
+DUSP11	phosphatase activity
+ECA4	Calcium-transporting ATPase 4, endoplasmic reticulum-type
+FAM96A	Family with sequence similarity 96 member A
+GAP50	acid phosphatase
+H2B1	Histone H2B
+ITGB4	integrin-mediated signaling pathway
+KIF18B	Belongs to the TRAFAC class myosin-kinesin ATPase super
+NUDCD3	unfolded protein binding
+PDIL1-4	protein disulfide isomerase-like
+PR4	chitin catabolic process
+PRMT6	histone methyltransferase activity (H2A-R3 specific)
+RPS3B	Small ribosomal subunit protein uS3y
+RPT5B	26S proteasome regulatory subunit 6A B
+abcc2	ABC transporter transmembrane region
+alo1	D-arabinono-1,4-lactone oxidase
+ap2s1	protein transporter activity
+ash1l	uterine gland development
+eIF(iso)4E	translation initiation factor activity
+prx5	Glutaredoxin

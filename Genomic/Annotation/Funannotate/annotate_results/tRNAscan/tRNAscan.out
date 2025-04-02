@@ -1,0 +1,7 @@
+Sequence         		tRNA	Bounds	tRNA	Anti	Intron Bounds	Inf	HMM	2'Str	      
+Name             	tRNA #	Begin	End	Type	Codon	Begin	End	Score	Score	Score	Note
+--------         	------	-----	------	----	-----	-----	----	------	-----	-----	------
+ACNH67_000173-T1 	1	103	184	Ser	GCT	0	0	71.3	42.20	29.10	
+ACNH67_000190-T1 	1	103	184	Ser	GCT	0	0	71.3	42.20	29.10	
+ACNH67_000970-T1 	1	103	184	Ser	GCT	0	0	79.7	49.80	29.90	
+ACNH67_002878-T1 	1	2725	2805	Leu	TAA	0	0	58.2	41.20	17.00	

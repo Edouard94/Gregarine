@@ -1,0 +1,10 @@
+##gff-version 3
+contig_284	barrnap:0.9	rRNA	4917	5027	3.1e-14	+	.	Name=5S_rRNA;product=5S ribosomal RNA
+contig_284	barrnap:0.9	rRNA	5324	8824	0	-	.	Name=28S_rRNA;product=28S ribosomal RNA
+contig_284	barrnap:0.9	rRNA	8671	8820	2.1e-21	-	.	Name=5_8S_rRNA;product=5.8S ribosomal RNA
+contig_390	barrnap:0.9	rRNA	34040	35536	0	-	.	Name=28S_rRNA;product=28S ribosomal RNA (partial);note=aligned only 51 percent of the 28S ribosomal RNA
+contig_455	barrnap:0.9	rRNA	458	2233	0	+	.	Name=18S_rRNA;product=18S ribosomal RNA
+contig_455	barrnap:0.9	rRNA	2306	2455	2.1e-21	+	.	Name=5_8S_rRNA;product=5.8S ribosomal RNA
+contig_455	barrnap:0.9	rRNA	3210	3359	2.1e-21	-	.	Name=5_8S_rRNA;product=5.8S ribosomal RNA
+contig_455	barrnap:0.9	rRNA	3432	5208	0	-	.	Name=18S_rRNA;product=18S ribosomal RNA
+contig_455	barrnap:0.9	rRNA	5625	5738	6.6e-15	+	.	Name=5S_rRNA;product=5S ribosomal RNA

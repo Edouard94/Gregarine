@@ -1,0 +1,2 @@
+#Name	Original Description	Cleaned Description	Error-message
+Grip84	It is involved in the biological process described with microtubule cytoskeleton organization	Grip84p	Product defline failed funannotate checks

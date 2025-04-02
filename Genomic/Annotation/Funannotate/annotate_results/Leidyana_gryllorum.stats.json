@@ -1,0 +1,120 @@
+{
+    "format": "annotation",
+    "command": "/home/edouard/miniconda3/envs/funannotate/bin/funannotate annotate -i species_train --force -o annotate.01Apr.25 --header_length 25 --sbt /home/edouard/GregarineStuff/Lgryllorum_Genome_analysis/Funannotate/template.sbt --species Leidyana_gryllorum --out funannotate_annotate/ --database /data2/funannotate_db --busco_db protists --eggnog Lgryllorum.emapper.annotations --iprscan interproscan.xml --rename ACNH67_ --cpus 5",
+    "organism": "Leidyana_gryllorum",
+    "software": {
+        "name": "funannotate",
+        "version": "1.8.17",
+        "date": "2025-04-01",
+        "resources": {
+            "merops": {
+                "type": "diamond",
+                "version": "12.0",
+                "date": "2017-10-04",
+                "num-records": "5098"
+            },
+            "uniprot": {
+                "type": "diamond",
+                "version": "2025_01",
+                "date": "2025-02-05",
+                "num-records": "572970"
+            },
+            "dbCAN": {
+                "type": "hmmer3",
+                "version": "13.0",
+                "date": "2024-08-14",
+                "num-records": "699"
+            },
+            "pfam": {
+                "type": "hmmer3",
+                "version": "37.2",
+                "date": "2024-11",
+                "num-records": "24076"
+            },
+            "repeats": {
+                "type": "diamond",
+                "version": "1.0",
+                "date": "2025-03-04",
+                "num-records": "11950"
+            },
+            "go": {
+                "type": "text",
+                "version": "2025-02-06",
+                "date": "2025-02-06",
+                "num-records": "47995"
+            },
+            "mibig": {
+                "type": "diamond",
+                "version": "1.4",
+                "date": "2025-03-04",
+                "num-records": "31023"
+            },
+            "interpro": {
+                "type": "xml",
+                "version": "104.0",
+                "date": "2025-02-06",
+                "num-records": "47677"
+            },
+            "busco_outgroups": {
+                "type": "outgroups",
+                "version": "1.0",
+                "date": "2025-03-04",
+                "num-records": "8"
+            },
+            "gene2product": {
+                "type": "text",
+                "version": "1.94",
+                "date": "2024-07-07",
+                "num-records": "34464"
+            }
+        }
+    },
+    "assembly": {
+        "num_contigs": 237,
+        "length": 15504140,
+        "mean_length": 65418.31,
+        "N50": 294728,
+        "L50": 15,
+        "N90": 35510,
+        "L90": 77,
+        "GC_content": 52.85
+    },
+    "annotation": {
+        "genes": 5648,
+        "common_name": 439,
+        "mRNA": 5661,
+        "tRNA": 0,
+        "ncRNA": 0,
+        "rRNA": 0,
+        "avg_gene_length": 1868.0,
+        "transcript-level": {
+            "CDS_transcripts": 5661,
+            "CDS_five_utr": 0,
+            "CDS_three_utr": 737,
+            "CDS_no_utr": 4299,
+            "CDS_five_three_utr": 625,
+            "CDS_complete": 5617,
+            "CDS_no-start": 17,
+            "CDS_no-stop": 25,
+            "CDS_no-start_no-stop": 2,
+            "total_exons": 23089,
+            "total_cds_exons": 20718,
+            "multiple_exon_transcript": 3764,
+            "single_exon_transcript": 1897,
+            "avg_exon_length": 391.94,
+            "avg_protein_length": 548.28,
+            "functional": {
+                "go_terms": 2413,
+                "interproscan": 3238,
+                "eggnog": 3213,
+                "pfam": 2657,
+                "cazyme": 82,
+                "merops": 145,
+                "busco": 54,
+                "secretion": 0
+            },
+            "pct_exon_overlap_protein_evidence": 0.25,
+            "pct_exon_overlap_transcript_evidence": 27.39
+        }
+    }
+}

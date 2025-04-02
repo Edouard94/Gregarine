@@ -1,0 +1,29 @@
+nohup: ignoring input
+Value "116bp" invalid for option len (integer number expected)
+
+tRNAscan-SE v.2.0.12 (Nov 2022) - scan sequences for transfer RNAs
+Copyright (C) 2022 Patricia Chan and Todd Lowe
+                   University of California Santa Cruz
+Freely distributed under the GNU General Public License (GPLv3)
+
+------------------------------------------------------------
+Sequence file(s) to search:        ../Leidyana_gryllorum.mrna-transcripts.fa
+Search Mode:                       Eukaryotic
+Results written to:                tRNAscan.out
+Output format:                     Tabular
+Searching with:                    Infernal First Pass->Infernal
+Isotype-specific model scan:       Yes
+Covariance model:                  /usr/local/lib/tRNAscan-SE/models/TRNAinf-euk.cm
+                                   /usr/local/lib/tRNAscan-SE/models/TRNAinf-euk-SeC.cm
+Infernal first pass cutoff score:  10
+
+Temporary directory:               /tmp
+tRNA secondary structure
+    predictions saved to:          tRNAscan.ss
+tRNA predictions saved to:         tRNAscan.gff
+
+Reporting HMM/2' structure score breakdown
+------------------------------------------------------------
+
+Status: Phase I: Searching for tRNAs with HMM-enabled Infernal
+Status: Phase II: Infernal verification of candidate tRNAs detected with first-pass scan

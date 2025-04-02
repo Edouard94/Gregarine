@@ -1,0 +1,17 @@
+#                                                                            --- full sequence --- -------------- this domain -------------   hmm coord   ali coord   env coord
+# target name        accession   tlen query name           accession   qlen   E-value  score  bias   #  of  c-Evalue  i-Evalue  score  bias  from    to  from    to  from    to  acc description of target
+#------------------- ---------- ----- -------------------- ---------- ----- --------- ------ ----- --- --- --------- --------- ------ ----- ----- ----- ----- ----- ----- ----- ---- ---------------------
+ACNH67_000753-T1     -            625 15094                -            422   4.6e-26   90.2  44.5   1   2     3e-06    0.0085   13.5  11.3    24    82   164   229   156   337 0.82 ACNH67_000753
+ACNH67_000753-T1     -            625 15094                -            422   4.6e-26   90.2  44.5   2   2   2.4e-28   6.9e-25   86.3  19.6   252   422   452   625   431   625 0.78 ACNH67_000753
+ACNH67_000520-T1     -            338 15094                -            422   5.1e-07   27.4  13.3   1   2   3.7e-07     0.001   16.5  11.2   181   337    69   253    62   261 0.72 ACNH67_000520
+ACNH67_000520-T1     -            338 15094                -            422   5.1e-07   27.4  13.3   2   2   0.00075       2.1    5.6   5.5   252   316   237   302   223   337 0.68 ACNH67_000520
+#
+# Program:         hmmsearch
+# Version:         3.1b2 (February 2015)
+# Pipeline mode:   SEARCH
+# Query file:      /home/edouard/GregarineStuff/Lgryllorum_Genome_analysis/Funannotate/Run_v3/species_train/annotate_results/busco_downloads/lineages/apicomplexa_odb12/hmms/15094at5794.hmm
+# Target file:     /home/edouard/GregarineStuff/Lgryllorum_Genome_analysis/Funannotate/Run_v3/species_train/annotate_results/Leidyana_gryllorum.proteins.fa
+# Option settings: hmmsearch --domtblout /home/edouard/GregarineStuff/Lgryllorum_Genome_analysis/Funannotate/Run_v3/species_train/annotate_results/busco/run_apicomplexa_odb12/hmmer_output/initial_run_results/15094at5794.out --cpu 1 /home/edouard/GregarineStuff/Lgryllorum_Genome_analysis/Funannotate/Run_v3/species_train/annotate_results/busco_downloads/lineages/apicomplexa_odb12/hmms/15094at5794.hmm /home/edouard/GregarineStuff/Lgryllorum_Genome_analysis/Funannotate/Run_v3/species_train/annotate_results/Leidyana_gryllorum.proteins.fa 
+# Current dir:     /home/edouard/GregarineStuff/Lgryllorum_Genome_analysis/Funannotate/Run_v3/species_train/annotate_results
+# Date:            Tue Apr  1 17:36:31 2025
+# [ok]
